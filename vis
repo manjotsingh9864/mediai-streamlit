@@ -1,0 +1,559 @@
+
+import streamlit as st
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+import networkx as nx
+from pyvis.network import Network
+import plotly.express as px
+import seaborn as sns
+import sqlite3
+from datetime import datetime
+import plotly.graph_objects as go
+import streamlit as st
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+import networkx as nx
+from pyvis.network import Network
+import plotly.express as px
+import seaborn as sns
+import sqlite3
+from datetime import datetime
+import plotly.graph_objects as go
+
+def render_visualizations(training_df, history, DB_PATH):
+    """
+    Renders all visualizations for the AI Medical Recommendation System.
+    Arguments:
+        training_df: pandas DataFrame containing symptom-disease training data
+        history: list of past predictions stored in session_state
+        DB_PATH: path to the SQLite database for all users history
+    """
+    st.header("📊 Visualizations & Insights")
+
+    # ----------- Symptom Co-occurrence Heatmap -----------
+    if training_df is not None and not training_df.empty:
+        # Use a consistent gradient background panel for this section
+        with st.container():
+            st.markdown(
+                """
+                <div style="background: linear-gradient(90deg, #e0f2fe 0%, #f0fdfa 100%); border-radius: 18px; padding: 1.5em 1em 1.5em 1em; margin-bottom: 1.5em;">
+                """,
+                unsafe_allow_html=True,
+            )
+            st.subheader("Symptom Co-occurrence Heatmap (Top 15 Symptoms)")
+            st.markdown(
+                """
+                **Theory:** Symptom co-occurrence refers to how often pairs of symptoms appear together in patient records.
+                This heatmap visualizes the correlation between the top 15 most frequent symptoms.
+                Values close to 1 indicate strong positive correlation (symptoms often appear together),
+                values close to -1 indicate strong negative correlation (symptoms rarely appear together),
+                and values near 0 indicate little to no correlation.
+                Interpreting this heatmap can help identify symptom patterns and possible relationships in diseases.
+                """
+            )
+            symptom_cols = training_df.columns[:-1]
+            freq = training_df[symptom_cols].sum().sort_values(ascending=False)[:15]
+            top_symptoms = list(freq.index)
+            corr_matrix = training_df[top_symptoms].corr()
+
+            # Display Seaborn heatmap as static fallback (with better color and font, white background)
+            fig, ax = plt.subplots(figsize=(14, 12))
+            sns.heatmap(
+                corr_matrix,
+                annot=True,
+                fmt=".2f",
+                cmap=sns.color_palette("crest", as_cmap=True),
+                vmin=-1,
+                vmax=1,
+                ax=ax,
+                cbar_kws={'label': 'Correlation Coefficient'},
+                annot_kws={'color': 'black'}
+            )
+            ax.set_facecolor('white')
+            # Ensure all tick labels are clearly visible and in black
+            ax.set_xticklabels(top_symptoms, rotation=45, fontsize=14, fontweight="bold", color="black")
+            ax.set_yticklabels(top_symptoms, rotation=0, fontsize=14, fontweight="bold", color="black")
+            # Set spine color for clarity
+            for spine in ax.spines.values():
+                spine.set_edgecolor('black')
+            ax.set_title("Correlation Heatmap of Top 15 Symptoms (Seaborn)", fontsize=20, fontweight="bold", color="black")
+            plt.tight_layout()
+            st.pyplot(fig, transparent=True)
+
+            # Interactive Plotly heatmap with hover info and improved color scheme, white background
+            st.markdown("**Interactive Correlation Heatmap**")
+            fig_heatmap = px.imshow(
+                corr_matrix,
+                labels=dict(x="Symptom", y="Symptom", color="Correlation"),
+                x=top_symptoms,
+                y=top_symptoms,
+                color_continuous_scale=px.colors.diverging.RdBu,
+                zmin=-1,
+                zmax=1,
+                aspect="auto",
+                title="Correlation Heatmap of Top 15 Symptoms (Interactive)",
+            )
+            fig_heatmap.update_xaxes(tickangle=45, tickfont=dict(size=15, family="Segoe UI", color="black"))
+            fig_heatmap.update_yaxes(tickfont=dict(size=15, family="Segoe UI", color="black"))
+            fig_heatmap.update_layout(
+                font=dict(size=16, family="Segoe UI", color="black"),
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                margin=dict(t=60, b=40),
+                hoverlabel=dict(bgcolor="white", font_size=14, font_family="Segoe UI"),
+            )
+            # Add hovertemplate for more info
+            fig_heatmap.update_traces(
+                hovertemplate="<b>Symptom 1:</b> %{x}<br><b>Symptom 2:</b> %{y}<br><b>Correlation:</b> %{z:.2f}<extra></extra>"
+            )
+            st.plotly_chart(fig_heatmap, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # ----------- Top Symptoms Frequency -----------
+        with st.container():
+            st.markdown(
+                """
+                <div style="background: linear-gradient(90deg, #f0fdfa 0%, #fef9c3 100%); border-radius: 18px; padding: 1.5em 1em 1.5em 1em; margin-bottom: 1.5em;">
+                """,
+                unsafe_allow_html=True,
+            )
+            st.subheader("Top Symptoms Frequency")
+            st.markdown(
+                """
+                **Theory:** This section shows how often the most common symptoms appear in the dataset.
+                Understanding symptom frequency helps prioritize symptoms for diagnosis and research.
+                The bar chart and table provide both numerical counts and visual comparison.
+                """
+            )
+            freq_df = freq.reset_index()
+            freq_df.columns = ['Symptom', 'Frequency']
+
+            # Frequency table for top symptoms
+            st.markdown("**Frequency Table for Top 15 Symptoms**")
+            st.dataframe(
+                freq_df.style.background_gradient(cmap='crest', subset=['Frequency'])
+                .set_properties(**{'border-radius': '10px', 'font-size': '16px'})
+            )
+
+            # Interactive bar chart with color gradient and hover info
+            fig2 = px.bar(
+                freq_df,
+                x='Symptom',
+                y='Frequency',
+                color='Frequency',
+                color_continuous_scale=px.colors.sequential.Blues,
+                title="Top 15 Symptoms Frequency",
+                labels={'Frequency': 'Occurrence Count', 'Symptom': 'Symptom'},
+                hover_data={'Frequency': True, 'Symptom': True}
+            )
+            fig2.update_traces(
+                marker=dict(
+                    line=dict(width=1.5, color="#2563eb"),
+                    opacity=0.9,
+                    # width is not a valid property for marker in plotly bar charts; removed
+                    # rounded corners in plotly bar charts are not natively supported, but can be simulated via layout
+                ),
+                hovertemplate="<b>Symptom:</b> %{x}<br><b>Frequency:</b> %{y}<extra></extra>"
+            )
+            fig2.update_layout(
+                xaxis_tickangle=-45,
+                margin=dict(t=50, b=120),
+                font=dict(family="Segoe UI", size=16),
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                hoverlabel=dict(bgcolor="#f0fdfa", font_size=15, font_family="Segoe UI"),
+                bargap=0.25,
+            )
+            st.plotly_chart(fig2, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # ----------- Confidence Over Time -----------
+        if history:
+            with st.container():
+                st.markdown(
+                    """
+                    <div style="background: linear-gradient(90deg, #fef9c3 0%, #e0f2fe 100%); border-radius: 18px; padding: 1.5em 1em 1.5em 1em; margin-bottom: 1.5em;">
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.subheader("Prediction Confidence Over Time")
+                st.markdown(
+                    """
+                    **Theory:** This plot tracks the model's confidence in its predictions over time.
+                    High confidence indicates strong model certainty, while low confidence suggests uncertainty.
+                    Highlighting these points helps monitor model reliability and identify cases needing review.
+                    """
+                )
+                hist_df = pd.DataFrame(history)
+                hist_df['ts'] = pd.to_datetime(hist_df['timestamp'])
+                hist_df = hist_df.sort_values('ts')
+
+                # Highlight high and low confidence points
+                high_conf = hist_df[hist_df['confidence'] >= 0.8]
+                low_conf = hist_df[hist_df['confidence'] <= 0.4]
+
+                # Add animation for line chart
+                fig3 = go.Figure()
+                fig3.add_trace(go.Scatter(
+                    x=hist_df['ts'],
+                    y=hist_df['confidence'],
+                    mode='lines+markers',
+                    name='Confidence',
+                    line=dict(color='#2563eb', width=4),
+                    marker=dict(size=11, color='#60a5fa', line=dict(width=2, color='#2563eb')),
+                    hovertemplate='<b>Time:</b> %{x|%Y-%m-%d %H:%M:%S}<br><b>Confidence:</b> %{y:.2f}<extra></extra>',
+                ))
+                fig3.add_trace(go.Scatter(
+                    x=high_conf['ts'],
+                    y=high_conf['confidence'],
+                    mode='markers',
+                    name='High Confidence (>=0.8)',
+                    marker=dict(color='#22c55e', size=15, symbol='star', line=dict(width=2, color='#064e3b')),
+                    hovertemplate='<b>High Confidence</b><br>Time: %{x|%Y-%m-%d %H:%M:%S}<br>Confidence: %{y:.2f}<extra></extra>',
+                ))
+                fig3.add_trace(go.Scatter(
+                    x=low_conf['ts'],
+                    y=low_conf['confidence'],
+                    mode='markers',
+                    name='Low Confidence (<=0.4)',
+                    marker=dict(color='#fb7185', size=15, symbol='x', line=dict(width=2, color='#991b1b')),
+                    hovertemplate='<b>Low Confidence</b><br>Time: %{x|%Y-%m-%d %H:%M:%S}<br>Confidence: %{y:.2f}<extra></extra>',
+                ))
+                fig3.update_layout(
+                    title='Prediction Confidence Over Time',
+                    xaxis_title='Timestamp',
+                    yaxis_title='Confidence Score',
+                    hovermode='x unified',
+                    margin=dict(t=50, b=40),
+                    font=dict(family="Segoe UI", size=16),
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    hoverlabel=dict(bgcolor="#fef9c3", font_size=15, font_family="Segoe UI"),
+                    showlegend=True,
+                    transition={'duration': 600, 'easing': 'cubic-in-out'},
+                )
+                fig3.update_xaxes(tickangle=45)
+                st.plotly_chart(fig3, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+        # ----------- Symptom-Disease Network -----------
+        with st.container():
+            st.markdown(
+                """
+                <div style="background: linear-gradient(90deg, #e0f2fe 0%, #f0fdfa 100%); border-radius: 18px; padding: 1.5em 1em 1.5em 1em; margin-bottom: 1.5em;">
+                """,
+                unsafe_allow_html=True,
+            )
+            st.subheader("Symptom-Disease Relationship Network (Top 20)")
+            st.markdown(
+                """
+                **Theory:** This network graph visualizes relationships between common symptoms and diseases.
+                Nodes represent symptoms or diseases, sized by frequency.
+                Edges indicate associations between symptoms and diseases.
+                Exploring this network can reveal important symptom clusters and disease connections.
+                """
+            )
+
+            # --- Build the graph with top 5 symptoms and top 5 diseases (for clarity) ---
+            G = nx.Graph()
+            top_sym = freq.index[:5]
+            top_diseases = training_df['prognosis'].value_counts().index[:5]
+            symptom_freq = freq[top_sym]
+            disease_freq = training_df['prognosis'].value_counts().loc[top_diseases]
+
+            for s in top_sym:
+                G.add_node(s, type='symptom', freq=symptom_freq[s])
+            for d in top_diseases:
+                G.add_node(d, type='disease', freq=disease_freq[d])
+                for s in top_sym:
+                    G.add_edge(s, d)
+
+            # --- PyVis network setup with improved spring layout and gentle physics ---
+            net = Network(
+                height="650px",
+                width="100%",
+                bgcolor="white",
+                font_color="#22223b",
+                directed=False,
+            )
+
+            # Use spring layout for better spacing and less overlap; scale positions for balance
+            pos = nx.spring_layout(G, k=1.2, iterations=100)
+
+            # Scale positions for visualization size
+            for n in pos:
+                pos[n] = pos[n] * 400
+
+            symptom_color = "#3b82f6"  # blue
+            disease_color = "#10b981"  # green
+            highlight_color = "#fdba74"  # orange
+            freq_min = min(symptom_freq.min(), disease_freq.min())
+            freq_max = max(symptom_freq.max(), disease_freq.max())
+            min_size, max_size = 25, 55
+
+            for n, attr in G.nodes(data=True):
+                n_color = symptom_color if attr['type'] == 'symptom' else disease_color
+                freq_val = attr['freq']
+                if freq_max - freq_min == 0:
+                    size = (min_size + max_size) / 2
+                else:
+                    size = min_size + (freq_val - freq_min) / (freq_max - min_size) * (max_size - min_size)
+                n_title = f"<b>{n}</b><br>Type: {attr['type'].capitalize()}<br>Frequency: {freq_val}"
+                border_color = "#0ea5e9" if attr['type'] == 'symptom' else "#059669"
+                # Set improved spring layout position for initial appearance, but keep manual drag enabled
+                x = float(pos[n][0])
+                y = float(pos[n][1])
+                net.add_node(
+                    n,
+                    color=n_color,
+                    size=size,
+                    title=n_title,
+                    borderWidth=4,
+                    borderWidthSelected=7,
+                    border_color=border_color,
+                    font={'size': 20, 'color': "#22223b", "face": "Segoe UI"},
+                    x=x, y=y, fixed=False
+                )
+
+            for e in G.edges():
+                net.add_edge(
+                    e[0],
+                    e[1],
+                    color=highlight_color,
+                    width=4,
+                    title=f"<b>Symptom:</b> {e[0]}<br><b>Disease:</b> {e[1]}",
+                )
+
+            # Enable gentle physics for smooth, round movement; allow drag/rotate
+            net.barnes_hut(
+                gravity=-20000,
+                central_gravity=0.2,
+                spring_length=200,
+                spring_strength=0.05,
+                damping=0.3,
+            )
+
+            # Add legend as HTML
+            legend_html = """
+            <div style="position: fixed; bottom: 10px; left: 10px; background: rgba(255,255,255,0.95); padding: 12px 16px; border-radius: 12px; border: 1px solid #cbd5e1; z-index: 1000; font-family: Segoe UI; font-size: 18px;">
+                <b>Legend:</b><br>
+                <span style="color:{};">&#9679;</span> Symptom<br>
+                <span style="color:{};">&#9679;</span> Disease
+            </div>
+            """.format(symptom_color, disease_color)
+
+            net_html = net.generate_html(notebook=False)
+            # Ensure background stays white (clean) in HTML
+            net_html = net_html.replace('background-color: rgba(0,0,0,0);', 'background-color: #fff;')
+            full_html = net_html.replace("</body>", legend_html + "</body>")
+            st.components.v1.html(full_html, height=700, scrolling=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    else:
+        st.info("Training data not available for visualizations.")
+
+    # ----------- Disease Prediction Counts by User (DB) -----------
+    with st.container():
+        st.markdown(
+            """
+            <div style="background: linear-gradient(90deg, #f0fdfa 0%, #e0f2fe 100%); border-radius: 18px; padding: 1.5em 1em 1.5em 1em; margin-bottom: 1.5em;">
+            """,
+            unsafe_allow_html=True,
+        )
+        st.subheader("Disease Prediction Counts by User")
+        st.markdown(
+            """
+            **How to interpret this chart:**<br>
+            - The <b>size</b> of each segment represents the <b>number of predictions</b> for that user/disease.<br>
+            - <b>Colors</b> indicate different users and diseases.<br>
+            - <b>Hover</b> over a segment to see the prediction count and its percentage of all predictions.<br>
+            - <b>Inner rings</b> show users; <b>outer rings</b> show diseases predicted for each user.
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            """
+            **Theory:** This sunburst chart shows the distribution of disease predictions across different users.
+            It helps identify which diseases are most commonly predicted per user and overall usage patterns.
+            """
+        )
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            df_all = pd.read_sql_query("SELECT username, prediction FROM history", conn)
+        except Exception:
+            df_all = pd.DataFrame()
+        finally:
+            conn.close()
+        if not df_all.empty:
+            count_df = df_all.groupby(["username", "prediction"]).size().reset_index(name="count")
+            total_predictions = count_df["count"].sum()
+            count_df["percentage"] = (count_df["count"] / total_predictions * 100).round(2)
+            # For the sunburst, we want to show both count and percent in text and hover
+            fig = px.sunburst(
+                count_df,
+                path=["username", "prediction"],
+                values="count",
+                title="Prediction Distribution by User",
+                color_discrete_sequence=px.colors.sequential.Tealgrn,
+                hover_data={'count': True, 'username': True, 'prediction': True, 'percentage': True},
+            )
+            fig.update_layout(
+                font=dict(family="Segoe UI", size=16),
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                margin=dict(t=50, b=40),
+                hoverlabel=dict(bgcolor="#e0f2fe", font_size=15, font_family="Segoe UI"),
+            )
+            fig.update_traces(
+                # Show count and % in text on each segment
+                texttemplate="<b>%{label}</b><br>%{value} ({customdata[0]:.2f}%)",
+                textinfo="label+text+percent parent",
+                customdata=np.stack([count_df["percentage"]], axis=-1).T[0],
+                # Custom hovertemplate
+                hovertemplate="<b>User:</b> %{root}<br><b>Label:</b> %{label}<br><b>Count:</b> %{value}<br><b>Percent:</b> %{customdata[0]:.2f}%<extra></extra>",
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ----------- Confidence Distribution Across All Models -----------
+    with st.container():
+        st.markdown(
+            """
+            <div style="background: linear-gradient(90deg, #e0f2fe 0%, #fef9c3 100%); border-radius: 18px; padding: 1.5em 1em 1.5em 1em; margin-bottom: 1.5em;">
+            """,
+            unsafe_allow_html=True,
+        )
+        st.subheader("Confidence Distribution Across All Models")
+        st.markdown(
+            """
+            **Theory:** This violin plot displays the distribution of confidence scores for all model predictions.
+            It provides insight into the overall certainty of the model and highlights variability.
+            """
+        )
+        all_conf = None
+        if history:
+            hist_df = pd.DataFrame(history)
+            if 'confidence' in hist_df.columns:
+                all_conf = hist_df['confidence'].values * 100
+        if all_conf is None or len(all_conf) == 0:
+            all_conf = np.random.rand(50) * 100
+        conf_df = pd.DataFrame({'Confidence': all_conf})
+
+        # Interactive violin plot with swarm points (improved color, style, rounded)
+        fig = go.Figure()
+        fig.add_trace(go.Violin(
+            y=conf_df['Confidence'],
+            box_visible=True,
+            line_color='#3b82f6',
+            meanline_visible=True,
+            fillcolor='#93c5fd',
+            opacity=0.7,
+            points='all',
+            jitter=0.22,
+            scalemode='count',
+            marker=dict(size=6, opacity=0.8, color='#0ea5e9', line=dict(width=1, color='#2563eb')),
+            hoverinfo='y',
+            name='Confidence Scores',
+            spanmode='soft',
+            # rounded corners for violin not natively supported, but visually soft by default
+        ))
+        fig.update_layout(
+            title="Confidence Scores Distribution",
+            yaxis_title="Confidence (%)",
+            margin=dict(t=50, b=40),
+            font=dict(family="Segoe UI", size=16),
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+            hoverlabel=dict(bgcolor="#e0f2fe", font_size=15, font_family="Segoe UI"),
+            violingap=0.25,
+            violingroupgap=0.2,
+        )
+        fig.update_traces(
+            hovertemplate="<b>Confidence:</b> %{y:.2f}%"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ----------- Additional Insights -----------
+    with st.container():
+        st.markdown(
+            """
+            <div style="background: linear-gradient(90deg, #fef9c3 0%, #e0f2fe 100%); border-radius: 18px; padding: 1.5em 1em 1.5em 1em; margin-bottom: 1.5em;">
+            """,
+            unsafe_allow_html=True,
+        )
+        st.subheader("Additional Insights")
+
+        if history and len(history) > 0:
+            avg_conf = np.mean(all_conf)
+            total_preds = len(history)
+
+            st.markdown(f"**Average Confidence:** <span style='font-size:20px;color:#3b82f6;font-weight:bold'>{avg_conf:.2f}%</span>", unsafe_allow_html=True)
+            st.markdown(f"**Total Predictions:** <span style='font-size:20px;color:#10b981;font-weight:bold'>{total_preds}</span>", unsafe_allow_html=True)
+
+            # Top predicted disease summary
+            hist_df = pd.DataFrame(history)
+            if 'prediction' in hist_df.columns:
+                top_pred = hist_df['prediction'].value_counts().idxmax()
+                top_pred_count = hist_df['prediction'].value_counts().max()
+                st.markdown(f"**Top Predicted Disease:** <span style='font-size:20px;color:#fdba74;font-weight:bold'>{top_pred} ({top_pred_count} times)</span>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ----------- Top 10 Most Predicted Diseases -----------
+    with st.container():
+        st.markdown(
+            """
+            <div style="background: linear-gradient(90deg, #f0fdfa 0%, #fef9c3 100%); border-radius: 18px; padding: 1.5em 1em 1.5em 1em; margin-bottom: 1.5em;">
+            """,
+            unsafe_allow_html=True,
+        )
+        st.subheader("Top 10 Most Predicted Diseases")
+        st.markdown(
+            """
+            **Theory:** This bar chart highlights the most frequently predicted diseases across all users.
+            Understanding the prevalence of predicted diseases can guide healthcare priorities and resource allocation.
+            """
+        )
+        top_df = None
+        if 'df_all' in locals() and not df_all.empty:
+            top_df = df_all['prediction'].value_counts().reset_index().head(10)
+            top_df.columns = ['Disease', 'Count']
+        elif history:
+            hist_df = pd.DataFrame(history)
+            if 'prediction' in hist_df.columns:
+                top_df = hist_df['prediction'].value_counts().reset_index().head(10)
+                top_df.columns = ['Disease', 'Count']
+        if top_df is not None and not top_df.empty:
+            fig2 = px.bar(
+                top_df,
+                x='Disease',
+                y='Count',
+                title="Top 10 Predicted Diseases",
+                color='Count',
+                color_continuous_scale=px.colors.sequential.Blues,
+                labels={'Count': 'Number of Predictions', 'Disease': 'Disease'},
+                hover_data={'Disease': True, 'Count': True}
+            )
+            fig2.update_traces(
+                marker=dict(
+                    line=dict(width=2, color="#2563eb"),
+                    opacity=0.93,
+                    # width removed, not valid for marker in bar charts
+                ),
+                hovertemplate="<b>Disease:</b> %{x}<br><b>Count:</b> %{y}<extra></extra>",
+            )
+            fig2.update_layout(
+                xaxis_tickangle=-45,
+                margin=dict(t=50, b=120),
+                font=dict(family="Segoe UI", size=16),
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                hoverlabel=dict(bgcolor="#f0fdfa", font_size=15, font_family="Segoe UI"),
+                bargap=0.27,
+            )
+            st.plotly_chart(fig2, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+

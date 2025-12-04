@@ -1,0 +1,1329 @@
+
+
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+from datetime import datetime
+import json
+
+def render_disease_explorer(description, precautions, medications, diets, workout):
+    """
+    Ultimate Disease Explorer & Comparison System
+    Parameters:
+    - description: dict mapping disease name to description (str)
+    - precautions: dict mapping disease name to list of precautions (list of str)
+    - medications: dict mapping disease name to list of medications (list of str)
+    - diets: dict mapping disease name to list of diet recommendations (list of str)
+    - workout: dict mapping disease name to list of workouts (list of str)
+    Features:
+    - Single disease detailed view
+    - Side-by-side disease comparison
+    - Advanced visualizations
+    - Common/Unique item analysis
+    - Recommendation richness metrics
+    - Interactive charts and graphs
+    """
+    # ========== CUSTOM CSS FOR STUNNING DESIGN ==========
+    st.markdown("""
+        <style>
+        /* Main page styling */
+        .main-title {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 3.5em;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 0.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* Disease card */
+        .disease-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2em;
+            margin: 1em 0;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-top: 5px solid #667eea;
+        }
+        
+        .disease-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+        }
+        
+        /* Category section */
+        .category-section {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border-radius: 15px;
+            padding: 1.5em;
+            margin: 1em 0;
+            border-left: 5px solid #0ea5e9;
+        }
+        
+        /* Comparison card */
+        .comparison-card {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-radius: 15px;
+            padding: 1.5em;
+            margin: 1em 0;
+            border-left: 5px solid #f59e0b;
+        }
+        
+        /* Item badge */
+        .item-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 0.5em 1em;
+            border-radius: 20px;
+            margin: 0.3em;
+            font-size: 0.9em;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        /* Common item badge */
+        .common-badge {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 0.4em 0.8em;
+            border-radius: 15px;
+            margin: 0.2em;
+            font-size: 0.85em;
+            display: inline-block;
+        }
+        
+        /* Unique badge */
+        .unique-badge {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            color: white;
+            padding: 0.4em 0.8em;
+            border-radius: 15px;
+            margin: 0.2em;
+            font-size: 0.85em;
+            display: inline-block;
+        }
+        
+        /* Section header */
+        .section-header {
+            color: #667eea;
+            font-size: 1.8em;
+            font-weight: bold;
+            margin: 1.5em 0 0.8em 0;
+            padding-bottom: 0.3em;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        /* Stats card */
+        .stats-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 15px;
+            padding: 1.5em;
+            text-align: center;
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+            margin: 0.5em 0;
+        }
+        
+        /* Description box */
+        .description-box {
+            background: linear-gradient(135deg, #f9fafb, #f3f4f6);
+            border-radius: 12px;
+            padding: 1.5em;
+            margin: 1em 0;
+            border-left: 4px solid #667eea;
+            font-size: 1.05em;
+            line-height: 1.7;
+            color: #374151;
+        }
+        
+        /* List item styling */
+        .custom-list-item {
+            background: white;
+            padding: 0.8em 1.2em;
+            margin: 0.5em 0;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .custom-list-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        /* Icon styling */
+        .icon {
+            font-size: 1.5em;
+            margin-right: 0.3em;
+            vertical-align: middle;
+        }
+        
+        /* Comparison highlight */
+        .highlight-common {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            border-left: 4px solid #10b981;
+        }
+        
+        .highlight-unique-1 {
+            background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+            border-left: 4px solid #6366f1;
+        }
+        
+        .highlight-unique-2 {
+            background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+            border-left: 4px solid #ec4899;
+        }
+        
+        /* Metric card */
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5em;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-top: 4px solid #667eea;
+            margin: 0.5em 0;
+        }
+        
+        /* Sidebar styling */
+        .css-1d391kg {
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        /* Tab styling */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            background-color: #f3f4f6;
+            border-radius: 10px 10px 0 0;
+            padding: 12px 24px;
+            font-weight: 600;
+        }
+        
+        .stTabs [aria-selected="true"] {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        /* Alert box */
+        .alert-box {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-left: 5px solid #f59e0b;
+            border-radius: 12px;
+            padding: 1.5em;
+            margin: 1em 0;
+        }
+        
+        /* Animated gradient background */
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .animated-gradient {
+            background: linear-gradient(-45deg, #667eea, #764ba2, #f093fb, #4facfe);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # ========== HELPER FUNCTIONS ==========
+    
+    def highlight_items(set1, set2):
+        """Return common, unique to set1, unique to set2 lists."""
+        set1 = set(set1) if set1 else set()
+        set2 = set(set2) if set2 else set()
+        common = sorted(set1 & set2)
+        unique1 = sorted(set1 - set2)
+        unique2 = sorted(set2 - set1)
+        return common, unique1, unique2
+    
+    def calculate_completeness_score(disease):
+        """Calculate how complete the disease information is (0-100)"""
+        total_items = 0
+        max_items = 20  # Assume max 5 items per category for scoring
+        
+        total_items += min(len(precautions.get(disease, [])), 5)
+        total_items += min(len(medications.get(disease, [])), 5)
+        total_items += min(len(diets.get(disease, [])), 5)
+        total_items += min(len(workout.get(disease, [])), 5)
+        
+        return (total_items / max_items) * 100
+    
+    def create_recommendation_radar(disease_name, prec_list, med_list, diet_list, work_list):
+        """Create radar chart for recommendation categories"""
+        categories = ['Precautions', 'Medications', 'Diet', 'Workouts']
+        values = [
+            len(prec_list),
+            len(med_list),
+            len(diet_list),
+            len(work_list)
+        ]
+        
+        # Close the plot
+        values += values[:1]
+        categories += categories[:1]
+        
+        fig = go.Figure(data=go.Scatterpolar(
+            r=values,
+            theta=categories,
+            fill='toself',
+            fillcolor='rgba(102, 126, 234, 0.3)',
+            line=dict(color='#667eea', width=3),
+            marker=dict(size=8, color='#764ba2')
+        ))
+        
+        fig.update_layout(
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, max(values) + 2],
+                    showticklabels=True,
+                    gridcolor='lightgray'
+                ),
+                angularaxis=dict(
+                    gridcolor='lightgray'
+                ),
+                bgcolor='rgba(245, 245, 245, 0.5)'
+            ),
+            title=dict(
+                text=f'Recommendation Profile: {disease_name}',
+                font=dict(size=18, color='#667eea'),
+                x=0.5,
+                xanchor='center'
+            ),
+            showlegend=False,
+            height=450,
+            paper_bgcolor='white',
+            font=dict(family="Inter, sans-serif", size=12)
+        )
+        
+        return fig
+    
+    def create_comparison_sunburst(d1, d2, prec1, prec2, med1, med2, diet1, diet2, work1, work2):
+        """Create sunburst chart for comparison"""
+        labels = []
+        parents = []
+        values = []
+        colors = []
+        
+        # Disease 1
+        labels.append(d1)
+        parents.append("")
+        values.append(len(prec1) + len(med1) + len(diet1) + len(work1))
+        colors.append('#667eea')
+        
+        # Disease 1 categories
+        for cat, items, color in [
+            ('Precautions', prec1, '#0ea5e9'),
+            ('Medications', med1, '#10b981'),
+            ('Diet', diet1, '#f59e0b'),
+            ('Workouts', work1, '#ec4899')
+        ]:
+            if items:
+                labels.append(f"{d1} - {cat}")
+                parents.append(d1)
+                values.append(len(items))
+                colors.append(color)
+        
+        # Disease 2
+        labels.append(d2)
+        parents.append("")
+        values.append(len(prec2) + len(med2) + len(diet2) + len(work2))
+        colors.append('#764ba2')
+        
+        # Disease 2 categories
+        for cat, items, color in [
+            ('Precautions', prec2, '#0ea5e9'),
+            ('Medications', med2, '#10b981'),
+            ('Diet', diet2, '#f59e0b'),
+            ('Workouts', work2, '#ec4899')
+        ]:
+            if items:
+                labels.append(f"{d2} - {cat}")
+                parents.append(d2)
+                values.append(len(items))
+                colors.append(color)
+        
+        fig = go.Figure(go.Sunburst(
+            labels=labels,
+            parents=parents,
+            values=values,
+            marker=dict(colors=colors, line=dict(color='white', width=2)),
+            hovertemplate='<b>%{label}</b><br>Count: %{value}<extra></extra>'
+        ))
+        
+        fig.update_layout(
+            title=dict(
+                text='Hierarchical Recommendation Comparison',
+                font=dict(size=20, color='#667eea'),
+                x=0.5,
+                xanchor='center'
+            ),
+            height=600,
+            paper_bgcolor='white',
+            margin=dict(l=0, r=0, t=60, b=0)
+        )
+        
+        return fig
+    
+    def create_heatmap_comparison(d1, d2, categories_data):
+        """Create heatmap showing recommendation density"""
+        categories = ['Precautions', 'Medications', 'Diet', 'Workouts']
+        data = []
+        
+        for cat, (items1, items2) in categories_data.items():
+            data.append([len(items1), len(items2)])
+        
+        fig = go.Figure(data=go.Heatmap(
+            z=data,
+            x=[d1, d2],
+            y=categories,
+            colorscale='Viridis',
+            text=data,
+            texttemplate='%{text}',
+            textfont={"size": 16, "color": "white"},
+            hovertemplate='<b>%{y}</b><br>%{x}: %{z} items<extra></extra>',
+            colorbar=dict(title="Items Count")
+        ))
+        
+        fig.update_layout(
+            title=dict(
+                text='Recommendation Density Heatmap',
+                font=dict(size=20, color='#667eea'),
+                x=0.5,
+                xanchor='center'
+            ),
+            height=400,
+            paper_bgcolor='white',
+            plot_bgcolor='white',
+            font=dict(family="Inter, sans-serif", size=13),
+            xaxis=dict(side='top'),
+            yaxis=dict(autorange='reversed')
+        )
+        
+        return fig
+    
+    def create_stacked_bar_comparison(d1, d2, prec1, prec2, med1, med2, diet1, diet2, work1, work2):
+        """Create stacked bar chart for comprehensive comparison"""
+        fig = go.Figure()
+        
+        categories = ['Precautions', 'Medications', 'Diet', 'Workouts']
+        
+        fig.add_trace(go.Bar(
+            name=d1,
+            y=categories,
+            x=[len(prec1), len(med1), len(diet1), len(work1)],
+            orientation='h',
+            marker=dict(
+                color='#667eea',
+                line=dict(color='white', width=2)
+            ),
+            text=[len(prec1), len(med1), len(diet1), len(work1)],
+            textposition='inside',
+            textfont=dict(size=14, color='white'),
+            hovertemplate='<b>%{y}</b><br>' + d1 + ': %{x}<extra></extra>'
+        ))
+        
+        fig.add_trace(go.Bar(
+            name=d2,
+            y=categories,
+            x=[len(prec2), len(med2), len(diet2), len(work2)],
+            orientation='h',
+            marker=dict(
+                color='#764ba2',
+                line=dict(color='white', width=2)
+            ),
+            text=[len(prec2), len(med2), len(diet2), len(work2)],
+            textposition='inside',
+            textfont=dict(size=14, color='white'),
+            hovertemplate='<b>%{y}</b><br>' + d2 + ': %{x}<extra></extra>'
+        ))
+        
+        fig.update_layout(
+            title=dict(
+                text='Side-by-Side Category Comparison',
+                font=dict(size=20, color='#667eea'),
+                x=0.5,
+                xanchor='center'
+            ),
+            barmode='group',
+            height=450,
+            paper_bgcolor='white',
+            plot_bgcolor='rgba(245, 245, 245, 0.5)',
+            font=dict(family="Inter, sans-serif", size=13),
+            xaxis=dict(title='Number of Items', showgrid=True, gridcolor='lightgray'),
+            yaxis=dict(title='', showgrid=False),
+            legend=dict(
+                x=1.02,
+                y=1,
+                bgcolor='rgba(255,255,255,0.9)',
+                bordercolor='#667eea',
+                borderwidth=2
+            )
+        )
+        
+        return fig
+    
+    # ========== MAIN UI RENDERING ==========
+
+    # Header
+    st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+        padding: 3em 2em; border-radius: 25px; margin-bottom: 2em; text-align: center; 
+        box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);'>
+        <h1 style='color: white; font-size: 3em; margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);'>
+        🔬 Disease Knowledge Explorer</h1>
+        <p style='color: rgba(255,255,255,0.95); font-size: 1.3em; margin-top: 0.8em; font-weight: 500;'>
+        Comprehensive Medical Information & Advanced Comparison Analytics</p>
+        <p style='color: rgba(255,255,255,0.85); font-size: 1em; margin-top: 0.5em;'>
+        📊 {len(description)} Diseases | 🔍 Deep Analysis | 📈 Visual Insights
+        </p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Sidebar
+    disease_list = sorted(description.keys())
+    
+    st.sidebar.markdown("""
+        <div style='background: linear-gradient(135deg, #667eea, #764ba2); 
+        padding: 2em 1em; border-radius: 15px; margin-bottom: 1.5em; text-align: center;'>
+        <h2 style='color: white; margin: 0;'>🎯 Disease Selector</h2>
+        <p style='color: rgba(255,255,255,0.9); margin-top: 0.5em; font-size: 0.9em;'>
+        Choose 1-2 diseases to explore</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    selected_diseases = st.sidebar.multiselect(
+        "🔍 Search & Select Diseases",
+        disease_list,
+        default=[disease_list[0]] if disease_list else [],
+        key="disease_explorer_multiselect",
+        help="Select one disease for detailed view or two for comparison"
+    )
+    
+    # Sidebar statistics
+    if disease_list:
+        st.sidebar.markdown("### 📊 Database Statistics")
+        
+        total_precautions = sum(len(precautions.get(d, [])) for d in disease_list)
+        total_medications = sum(len(medications.get(d, [])) for d in disease_list)
+        total_diets = sum(len(diets.get(d, [])) for d in disease_list)
+        total_workouts = sum(len(workout.get(d, [])) for d in disease_list)
+        
+        st.sidebar.markdown(f"""
+            <div class='stats-card'>
+            <h3 style='margin: 0; font-size: 2em;'>{len(disease_list)}</h3>
+            <p style='margin: 0.3em 0 0 0; opacity: 0.9;'>Total Diseases</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.sidebar.markdown(f"""
+            <div class='stats-card' style='background: linear-gradient(135deg, #0ea5e9, #0284c7);'>
+            <h3 style='margin: 0; font-size: 2em;'>{total_precautions}</h3>
+            <p style='margin: 0.3em 0 0 0; opacity: 0.9;'>Precautions</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.sidebar.markdown(f"""
+            <div class='stats-card' style='background: linear-gradient(135deg, #10b981, #059669);'>
+            <h3 style='margin: 0; font-size: 2em;'>{total_medications}</h3>
+            <p style='margin: 0.3em 0 0 0; opacity: 0.9;'>Medications</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.sidebar.markdown(f"""
+            <div class='stats-card' style='background: linear-gradient(135deg, #f59e0b, #d97706);'>
+            <h3 style='margin: 0; font-size: 2em;'>{total_diets}</h3>
+            <p style='margin: 0.3em 0 0 0; opacity: 0.9;'>Diet Plans</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        st.sidebar.markdown(f"""
+            <div class='stats-card' style='background: linear-gradient(135deg, #ec4899, #db2777);'>
+            <h3 style='margin: 0; font-size: 2em;'>{total_workouts}</h3>
+            <p style='margin: 0.3em 0 0 0; opacity: 0.9;'>Workouts</p>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # Validation
+    if len(selected_diseases) == 0:
+        st.markdown("""
+            <div class='alert-box'>
+            <h3 style='margin-top: 0; color: #f59e0b;'>
+            <span class='icon'>⚠️</span>No Disease Selected</h3>
+            <p style='margin-bottom: 0; color: #92400e; font-size: 1.1em;'>
+            Please select at least one disease from the sidebar to begin exploration.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        return
+    
+    if len(selected_diseases) > 2:
+        st.markdown("""
+            <div class='alert-box' style='background: linear-gradient(135deg, #fee2e2, #fecaca); 
+            border-left-color: #dc2626;'>
+            <h3 style='margin-top: 0; color: #dc2626;'>
+            <span class='icon'>🚫</span>Too Many Selections</h3>
+            <p style='margin-bottom: 0; color: #991b1b; font-size: 1.1em;'>
+            Please select at most two diseases for comparison. Currently selected: {len(selected_diseases)}</p>
+            </div>
+        """, unsafe_allow_html=True)
+        return
+    
+    # ========== SINGLE DISEASE VIEW ==========
+    if len(selected_diseases) == 1:
+        disease = selected_diseases[0]
+
+        # Disease header
+        st.markdown(f"""
+            <div class='disease-card animated-gradient' style='text-align: center;'>
+            <h1 style='color: white; margin: 0; font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);'>
+            {disease}</h1>
+            <p style='color: rgba(255,255,255,0.9); margin-top: 0.5em; font-size: 1.2em;'>
+            Comprehensive Medical Profile
+            </p>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Completeness score
+        completeness = calculate_completeness_score(disease)
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.markdown(f"""
+                <div class='metric-card'>
+                <h3 style='color: #0ea5e9; margin: 0; font-size: 2.5em;'>{len(precautions.get(disease, []))}</h3>
+                <p style='margin: 0.5em 0 0 0; color: #64748b;'>Precautions</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+                <div class='metric-card'>
+                <h3 style='color: #10b981; margin: 0; font-size: 2.5em;'>{len(medications.get(disease, []))}</h3>
+                <p style='margin: 0.5em 0 0 0; color: #64748b;'>Medications</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown(f"""
+                <div class='metric-card'>
+                <h3 style='color: #f59e0b; margin: 0; font-size: 2.5em;'>{len(diets.get(disease, []))}</h3>
+                <p style='margin: 0.5em 0 0 0; color: #64748b;'>Diet Items</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown(f"""
+                <div class='metric-card'>
+                <h3 style='color: #ec4899; margin: 0; font-size: 2.5em;'>{len(workout.get(disease, []))}</h3>
+                <p style='margin: 0.5em 0 0 0; color: #64748b;'>Workouts</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Completeness gauge
+        fig_gauge = go.Figure(go.Indicator(
+            mode="gauge+number+delta",
+            value=completeness,
+            domain={'x': [0, 1], 'y': [0, 1]},
+            title={'text': "Information Completeness Score", 'font': {'size': 24, 'color': '#667eea'}},
+            delta={'reference': 75, 'increasing': {'color': "#10b981"}, 'decreasing': {'color': '#ef4444'}},
+            gauge={
+                'axis': {'range': [None, 100], 'tickwidth': 2, 'tickcolor': "#9ca3af"},
+                'bar': {'color': "#667eea", 'thickness': 0.8},
+                'bgcolor': "white",
+                'borderwidth': 3,
+                'bordercolor': "#e5e7eb",
+                'steps': [
+                    {'range': [0, 30], 'color': '#fecaca'},
+                    {'range': [30, 60], 'color': '#fde68a'},
+                    {'range': [60, 100], 'color': '#bbf7d0'}
+                ],
+                'threshold': {
+                    'line': {'color': "#dc2626", 'width': 4},
+                    'thickness': 0.75,
+                    'value': 80
+                }
+            }
+        ))
+        
+        fig_gauge.update_layout(
+            paper_bgcolor="white",
+            font={'color': "#1f2937", 'family': "Inter, sans-serif"},
+            height=350,
+            margin=dict(l=20, r=20, t=60, b=20)
+        )
+        
+        st.plotly_chart(fig_gauge, use_container_width=True)
+        
+        # Tabs for organized content
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "📖 Description",
+            "⚠️ Precautions",
+            "💊 Medications",
+            "🥗 Diet",
+            "🏃 Workouts",
+            "📊 Analytics"
+        ])
+        
+        with tab1:
+            st.markdown(f"""
+                <div class='description-box'>
+                <h3 style='color: #667eea; margin-top: 0;'>
+                <span class='icon'>📖</span>Medical Description</h3>
+                <p>{description.get(disease, "No description available.")}</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with tab2:
+            st.markdown("<h3 class='section-header'><span class='icon'>⚠️</span>Precautions</h3>", unsafe_allow_html=True)
+            prec_list = precautions.get(disease, [])
+            if prec_list:
+                for idx, item in enumerate(prec_list, 1):
+                    st.markdown(f"""
+                        <div class='custom-list-item'>
+                        <strong style='color: #667eea;'>{idx}.</strong> {item}
+                        </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("ℹ️ No precautions listed for this disease.")
+        
+        with tab3:
+            st.markdown("<h3 class='section-header'><span class='icon'>💊</span>Medications</h3>", unsafe_allow_html=True)
+            med_list = medications.get(disease, [])
+            if med_list:
+                for idx, item in enumerate(med_list, 1):
+                    st.markdown(f"""
+                        <div class='custom-list-item' style='border-left-color: #10b981;'>
+                        <strong style='color: #10b981;'>{idx}.</strong> {item}
+                        </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("ℹ️ No medications listed for this disease.")
+        
+        with tab4:
+            st.markdown("<h3 class='section-header'><span class='icon'>🥗</span>Diet Recommendations</h3>", unsafe_allow_html=True)
+            diet_list = diets.get(disease, [])
+            if diet_list:
+                for idx, item in enumerate(diet_list, 1):
+                    st.markdown(f"""
+                        <div class='custom-list-item' style='border-left-color: #f59e0b;'>
+                        <strong style='color: #f59e0b;'>{idx}.</strong> {item}
+                        </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("ℹ️ No diet recommendations listed for this disease.")
+        
+        with tab5:
+            st.markdown("<h3 class='section-header'><span class='icon'>🏃</span>Workout Recommendations</h3>", unsafe_allow_html=True)
+            work_list = workout.get(disease, [])
+            if work_list:
+                for idx, item in enumerate(work_list, 1):
+                    st.markdown(f"""
+                        <div class='custom-list-item' style='border-left-color: #ec4899;'>
+                        <strong style='color: #ec4899;'>{idx}.</strong> {item}
+                        </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("ℹ️ No workout recommendations listed for this disease.")
+        
+        with tab6:
+            st.markdown("<h3 class='section-header'><span class='icon'>📊</span>Visual Analytics</h3>", unsafe_allow_html=True)
+            
+            # Radar chart
+            radar_fig = create_recommendation_radar(
+                disease,
+                prec_list,
+                med_list,
+                diet_list,
+                work_list
+            )
+            st.plotly_chart(radar_fig, use_container_width=True)
+            
+            # Category breakdown pie chart
+            categories_data = {
+                'Precautions': len(prec_list),
+                'Medications': len(med_list),
+                'Diet': len(diet_list),
+                'Workouts': len(work_list)
+            }
+            
+            if sum(categories_data.values()) > 0:
+                fig_pie = go.Figure(data=[go.Pie(
+                    labels=list(categories_data.keys()),
+                    values=list(categories_data.values()),
+                    hole=0.4,
+                    marker=dict(
+                        colors=['#0ea5e9', '#10b981', '#f59e0b', '#ec4899'],
+                        line=dict(color='white', width=3)
+                    ),
+                    textinfo='label+percent+value',
+                    textfont=dict(size=14),
+                    hovertemplate='<b>%{label}</b><br>Count: %{value}<br>Percentage: %{percent}<extra></extra>'
+                )])
+                
+                fig_pie.update_layout(
+                    title=dict(
+                        text='Recommendation Distribution',
+                        font=dict(size=20, color='#667eea'),
+                        x=0.5,
+                        xanchor='center'
+                    ),
+                    paper_bgcolor='white',
+                    height=500,
+                    annotations=[dict(
+                        text=f'{sum(categories_data.values())}<br>Total',
+                        x=0.5, y=0.5,
+                        font_size=24,
+                        font_color='#667eea',
+                        showarrow=False
+                    )],
+                    font=dict(family="Inter, sans-serif")
+                )
+                
+                st.plotly_chart(fig_pie, use_container_width=True)
+            
+            # Bar chart
+            fig_bar = go.Figure(data=[
+                go.Bar(
+                    y=list(categories_data.keys()),
+                    x=list(categories_data.values()),
+                    orientation='h',
+                    marker=dict(
+                        color=['#0ea5e9', '#10b981', '#f59e0b', '#ec4899'],
+                        line=dict(color='white', width=2)
+                    ),
+                    text=list(categories_data.values()),
+                    textposition='outside',
+                    textfont=dict(size=16, color='#1f2937'),
+                    hovertemplate='<b>%{y}</b><br>Count: %{x}<extra></extra>'
+                )
+            ])
+            
+            fig_bar.update_layout(
+                title=dict(
+                    text='Recommendation Count by Category',
+                    font=dict(size=20, color='#667eea'),
+                    x=0.5,
+                    xanchor='center'
+                ),
+                xaxis_title='Number of Items',
+                yaxis_title='',
+                height=400,
+                paper_bgcolor='white',
+                plot_bgcolor='rgba(245, 245, 245, 0.5)',
+                font=dict(family="Inter, sans-serif", size=13),
+                xaxis=dict(showgrid=True, gridcolor='lightgray')
+            )
+            
+            st.plotly_chart(fig_bar, use_container_width=True)
+    
+    # ========== TWO DISEASE COMPARISON VIEW ==========
+    elif len(selected_diseases) == 2:
+        d1, d2 = selected_diseases
+
+        # Comparison header
+        st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%); 
+            padding: 2.5em; border-radius: 25px; text-align: center; margin-bottom: 2em; 
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);'>
+            <h1 style='color: white; margin: 0; font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);'>
+            ⚖️ Disease Comparison</h1>
+            <h2 style='color: white; margin-top: 0.8em; font-size: 1.8em; font-weight: normal;'>
+            {d1} <span style='opacity: 0.8;'>vs</span> {d2}</h2>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Get data for both diseases
+        prec1 = precautions.get(d1, [])
+        prec2 = precautions.get(d2, [])
+        med1 = medications.get(d1, [])
+        med2 = medications.get(d2, [])
+        diet1 = diets.get(d1, [])
+        diet2 = diets.get(d2, [])
+        work1 = workout.get(d1, [])
+        work2 = workout.get(d2, [])
+        
+        # Quick comparison metrics
+        st.markdown("### 📊 Quick Comparison Overview")
+
+        total1 = len(prec1) + len(med1) + len(diet1) + len(work1)
+        total2 = len(prec2) + len(med2) + len(diet2) + len(work2)
+        comp1 = calculate_completeness_score(d1)
+        comp2 = calculate_completeness_score(d2)
+        diff = abs(total1 - total2)
+
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1:
+            st.markdown(f"""
+                <div class='metric-card' style='border-top-color: #667eea;'>
+                <h4 style='color: #667eea; margin: 0;'>{d1}</h4>
+                <h2 style='color: #667eea; margin: 0.5em 0;'>{total1}</h2>
+                <p style='color: #64748b; margin: 0; font-size: 0.9em;'>Total Items</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown(f"""
+                <div class='metric-card' style='border-top-color: #764ba2;'>
+                <h4 style='color: #764ba2; margin: 0;'>{d2}</h4>
+                <h2 style='color: #764ba2; margin: 0.5em 0;'>{total2}</h2>
+                <p style='color: #64748b; margin: 0; font-size: 0.9em;'>Total Items</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown(f"""
+                <div class='metric-card' style='border-top-color: #f59e0b;'>
+                <h4 style='color: #f59e0b; margin: 0;'>Difference</h4>
+                <h2 style='color: #f59e0b; margin: 0.5em 0;'>{diff}</h2>
+                <p style='color: #64748b; margin: 0; font-size: 0.9em;'>Items</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown(f"""
+                <div class='metric-card' style='border-top-color: #10b981;'>
+                <h4 style='color: #10b981; margin: 0;'>{d1[:15]}...</h4>
+                <h2 style='color: #10b981; margin: 0.5em 0;'>{comp1:.0f}%</h2>
+                <p style='color: #64748b; margin: 0; font-size: 0.9em;'>Completeness</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with col5:
+            st.markdown(f"""
+                <div class='metric-card' style='border-top-color: #ec4899;'>
+                <h4 style='color: #ec4899; margin: 0;'>{d2[:15]}...</h4>
+                <h2 style='color: #ec4899; margin: 0.5em 0;'>{comp2:.0f}%</h2>
+                <p style='color: #64748b; margin: 0; font-size: 0.9em;'>Completeness</p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        
+        # Create comparison tabs
+        comp_tab1, comp_tab2, comp_tab3, comp_tab4 = st.tabs([
+            "📋 Side-by-Side Details",
+            "🔍 Common & Unique Items",
+            "📊 Visual Analytics",
+            "📈 Advanced Insights"
+        ])
+
+        # Prepare categories_data for later use
+        categories_data = {
+            'Precautions': (prec1, prec2),
+            'Medications': (med1, med2),
+            'Diet': (diet1, diet2),
+            'Workouts': (work1, work2)
+        }
+
+        with comp_tab1:
+            st.markdown("### 📋 Detailed Side-by-Side Comparison")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.markdown(f"""
+                    <div class='disease-card' style='border-top-color: #667eea;'>
+                    <h2 style='color: #667eea; margin-top: 0;'>{d1}</h2>
+                    </div>
+                """, unsafe_allow_html=True)
+                st.markdown(f"""
+                    <div class='description-box'>
+                    <h4 style='color: #667eea; margin-top: 0;'>📖 Description</h4>
+                    <p style='margin-bottom: 0;'>{description.get(d1, "No description available.")}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+                st.markdown("<h4 style='color: #0ea5e9;'>⚠️ Precautions</h4>", unsafe_allow_html=True)
+                if prec1:
+                    for item in prec1:
+                        st.markdown(f"""
+                            <div class='custom-list-item' style='border-left-color: #0ea5e9;'>
+                            • {item}
+                            </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("None listed")
+                st.markdown("<h4 style='color: #10b981;'>💊 Medications</h4>", unsafe_allow_html=True)
+                if med1:
+                    for item in med1:
+                        st.markdown(f"""
+                            <div class='custom-list-item' style='border-left-color: #10b981;'>
+                            • {item}
+                            </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("None listed")
+                st.markdown("<h4 style='color: #f59e0b;'>🥗 Diet</h4>", unsafe_allow_html=True)
+                if diet1:
+                    for item in diet1:
+                        st.markdown(f"""
+                            <div class='custom-list-item' style='border-left-color: #f59e0b;'>
+                            • {item}
+                            </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("None listed")
+                st.markdown("<h4 style='color: #ec4899;'>🏃 Workouts</h4>", unsafe_allow_html=True)
+                if work1:
+                    for item in work1:
+                        st.markdown(f"""
+                            <div class='custom-list-item' style='border-left-color: #ec4899;'>
+                            • {item}
+                            </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("None listed")
+            with col_b:
+                st.markdown(f"""
+                    <div class='disease-card' style='border-top-color: #764ba2;'>
+                    <h2 style='color: #764ba2; margin-top: 0;'>{d2}</h2>
+                    </div>
+                """, unsafe_allow_html=True)
+                st.markdown(f"""
+                    <div class='description-box'>
+                    <h4 style='color: #764ba2; margin-top: 0;'>📖 Description</h4>
+                    <p style='margin-bottom: 0;'>{description.get(d2, "No description available.")}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+                st.markdown("<h4 style='color: #0ea5e9;'>⚠️ Precautions</h4>", unsafe_allow_html=True)
+                if prec2:
+                    for item in prec2:
+                        st.markdown(f"""
+                            <div class='custom-list-item' style='border-left-color: #0ea5e9;'>
+                            • {item}
+                            </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("None listed")
+                st.markdown("<h4 style='color: #10b981;'>💊 Medications</h4>", unsafe_allow_html=True)
+                if med2:
+                    for item in med2:
+                        st.markdown(f"""
+                            <div class='custom-list-item' style='border-left-color: #10b981;'>
+                            • {item}
+                            </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("None listed")
+                st.markdown("<h4 style='color: #f59e0b;'>🥗 Diet</h4>", unsafe_allow_html=True)
+                if diet2:
+                    for item in diet2:
+                        st.markdown(f"""
+                            <div class='custom-list-item' style='border-left-color: #f59e0b;'>
+                            • {item}
+                            </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("None listed")
+                st.markdown("<h4 style='color: #ec4899;'>🏃 Workouts</h4>", unsafe_allow_html=True)
+                if work2:
+                    for item in work2:
+                        st.markdown(f"""
+                            <div class='custom-list-item' style='border-left-color: #ec4899;'>
+                            • {item}
+                            </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("None listed")
+
+        with comp_tab2:
+            st.markdown("### 🔍 Common & Unique Item Analysis")
+            # Analyze each category
+            categories = [
+                ("⚠️ Precautions", prec1, prec2, "#0ea5e9"),
+                ("💊 Medications", med1, med2, "#10b981"),
+                ("🥗 Diet Recommendations", diet1, diet2, "#f59e0b"),
+                ("🏃 Workouts", work1, work2, "#ec4899")
+            ]
+            for cat_name, list1, list2, color in categories:
+                st.markdown(f"<h3 style='color: {color};'>{cat_name}</h3>", unsafe_allow_html=True)
+                common, unique1, unique2 = highlight_items(list1, list2)
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.markdown(f"""
+                        <div class='category-section highlight-common'>
+                        <h4 style='color: #10b981; margin-top: 0;'>
+                        ✅ Common ({len(common)})</h4>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    if common:
+                        for item in common:
+                            st.markdown(f"""
+                                <div class='custom-list-item highlight-common'>
+                                <span class='common-badge'>✓</span> {item}
+                                </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.info("No common items")
+                with c2:
+                    st.markdown(f"""
+                        <div class='category-section highlight-unique-1'>
+                        <h4 style='color: #6366f1; margin-top: 0;'>
+                        🔷 Unique to {d1} ({len(unique1)})</h4>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    if unique1:
+                        for item in unique1:
+                            st.markdown(f"""
+                                <div class='custom-list-item highlight-unique-1'>
+                                <span class='unique-badge' style='background: linear-gradient(135deg, #6366f1, #4f46e5);'>1</span> {item}
+                                </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.info("No unique items")
+                with c3:
+                    st.markdown(f"""
+                        <div class='category-section highlight-unique-2'>
+                        <h4 style='color: #ec4899; margin-top: 0;'>
+                        🔶 Unique to {d2} ({len(unique2)})</h4>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    if unique2:
+                        for item in unique2:
+                            st.markdown(f"""
+                                <div class='custom-list-item highlight-unique-2'>
+                                <span class='unique-badge' style='background: linear-gradient(135deg, #ec4899, #db2777);'>2</span> {item}
+                                </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.info("No unique items")
+                st.markdown("<br>", unsafe_allow_html=True)
+            # Summary statistics
+            st.markdown("### 📈 Overlap Statistics")
+            total_common = len(highlight_items(prec1, prec2)[0]) + \
+                          len(highlight_items(med1, med2)[0]) + \
+                          len(highlight_items(diet1, diet2)[0]) + \
+                          len(highlight_items(work1, work2)[0])
+            total_unique1 = len(highlight_items(prec1, prec2)[1]) + \
+                           len(highlight_items(med1, med2)[1]) + \
+                           len(highlight_items(diet1, diet2)[1]) + \
+                           len(highlight_items(work1, work2)[1])
+            total_unique2 = len(highlight_items(prec1, prec2)[2]) + \
+                           len(highlight_items(med1, med2)[2]) + \
+                           len(highlight_items(diet1, diet2)[2]) + \
+                           len(highlight_items(work1, work2)[2])
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.markdown(f"""
+                    <div class='stats-card' style='background: linear-gradient(135deg, #10b981, #059669);'>
+                    <h2 style='margin: 0; font-size: 2.5em;'>{total_common}</h2>
+                    <p style='margin: 0.5em 0 0 0; opacity: 0.95;'>Total Common Items</p>
+                    </div>
+                """, unsafe_allow_html=True)
+            with c2:
+                st.markdown(f"""
+                    <div class='stats-card' style='background: linear-gradient(135deg, #6366f1, #4f46e5);'>
+                    <h2 style='margin: 0; font-size: 2.5em;'>{total_unique1}</h2>
+                    <p style='margin: 0.5em 0 0 0; opacity: 0.95;'>Unique to {d1[:15]}...</p>
+                    </div>
+                """, unsafe_allow_html=True)
+            with c3:
+                st.markdown(f"""
+                    <div class='stats-card' style='background: linear-gradient(135deg, #ec4899, #db2777);'>
+                    <h2 style='margin: 0; font-size: 2.5em;'>{total_unique2}</h2>
+                    <p style='margin: 0.5em 0 0 0; opacity: 0.95;'>Unique to {d2[:15]}...</p>
+                    </div>
+                """, unsafe_allow_html=True)
+
+        with comp_tab3:
+            st.markdown("### 📊 Visual Comparison Analytics")
+            stacked_fig = create_stacked_bar_comparison(d1, d2, prec1, prec2, med1, med2, diet1, diet2, work1, work2)
+            st.plotly_chart(stacked_fig, use_container_width=True)
+            heatmap_fig = create_heatmap_comparison(d1, d2, categories_data)
+            st.plotly_chart(heatmap_fig, use_container_width=True)
+            sunburst_fig = create_comparison_sunburst(d1, d2, prec1, prec2, med1, med2, diet1, diet2, work1, work2)
+            st.plotly_chart(sunburst_fig, use_container_width=True)
+
+        with comp_tab4:
+            st.markdown("### 📈 Advanced Comparative Insights")
+            col1, col2 = st.columns(2)
+            with col1:
+                radar1 = create_recommendation_radar(d1, prec1, med1, diet1, work1)
+                st.plotly_chart(radar1, use_container_width=True)
+            with col2:
+                radar2 = create_recommendation_radar(d2, prec2, med2, diet2, work2)
+                st.plotly_chart(radar2, use_container_width=True)
+            st.markdown("### 🎯 Similarity Analysis")
+            similarity_scores = []
+            categories_list = ['Precautions', 'Medications', 'Diet', 'Workouts']
+            for cat, (l1, l2) in categories_data.items():
+                common_len = len(highlight_items(l1, l2)[0])
+                total_len = len(set(l1).union(set(l2)))
+                similarity = (common_len / total_len * 100) if total_len > 0 else 0
+                similarity_scores.append((cat, similarity))
+            all_items1 = set(prec1 + med1 + diet1 + work1)
+            all_items2 = set(prec2 + med2 + diet2 + work2)
+            overall_similarity = (len(all_items1 & all_items2) / len(all_items1 | all_items2) * 100) if len(all_items1 | all_items2) > 0 else 0
+            st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #667eea, #764ba2); 
+                color: white; padding: 2em; border-radius: 20px; text-align: center; 
+                margin-bottom: 2em; box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);'>
+                <h2 style='margin: 0; font-size: 1.5em; opacity: 0.9;'>Overall Similarity Score</h2>
+                <h1 style='margin: 0.5em 0 0 0; font-size: 4em;'>{overall_similarity:.1f}%</h1>
+                <p style='margin: 0.5em 0 0 0; opacity: 0.85;'>
+                Based on Jaccard Similarity Index
+                </p>
+                </div>
+            """, unsafe_allow_html=True)
+            fig_similarity = go.Figure(data=[
+                go.Bar(
+                    y=[s[0] for s in similarity_scores],
+                    x=[s[1] for s in similarity_scores],
+                    orientation='h',
+                    marker=dict(
+                        color=[s[1] for s in similarity_scores],
+                        colorscale='RdYlGn',
+                        line=dict(color='white', width=2),
+                        cmin=0,
+                        cmax=100
+                    ),
+                    text=[f"{s[1]:.1f}%" for s in similarity_scores],
+                    textposition='outside',
+                    textfont=dict(size=14, color='#1f2937'),
+                    hovertemplate='<b>%{y}</b><br>Similarity: %{x:.1f}%<extra></extra>'
+                )
+            ])
+            fig_similarity.update_layout(
+                title=dict(
+                    text='Category-wise Similarity Scores',
+                    font=dict(size=20, color='#667eea'),
+                    x=0.5,
+                    xanchor='center'
+                ),
+                xaxis_title='Similarity (%)',
+                yaxis_title='',
+                height=400,
+                paper_bgcolor='white',
+                plot_bgcolor='rgba(245, 245, 245, 0.5)',
+                font=dict(family="Inter, sans-serif", size=13),
+                xaxis=dict(range=[0, 110], showgrid=True, gridcolor='lightgray')
+            )
+            st.plotly_chart(fig_similarity, use_container_width=True)
+            st.markdown("### 📋 Detailed Comparison Table")
+            comparison_data = {
+                'Category': categories_list,
+                d1: [len(prec1), len(med1), len(diet1), len(work1)],
+                d2: [len(prec2), len(med2), len(diet2), len(work2)],
+                'Common': [
+                    len(highlight_items(prec1, prec2)[0]),
+                    len(highlight_items(med1, med2)[0]),
+                    len(highlight_items(diet1, diet2)[0]),
+                    len(highlight_items(work1, work2)[0])
+                ],
+                'Difference': [
+                    abs(len(prec1) - len(prec2)),
+                    abs(len(med1) - len(med2)),
+                    abs(len(diet1) - len(diet2)),
+                    abs(len(work1) - len(work2))
+                ]
+            }
+            df_comparison = pd.DataFrame(comparison_data)
+            df_comparison['Similarity %'] = [f"{s[1]:.1f}%" for s in similarity_scores]
+            st.dataframe(
+                df_comparison.style.background_gradient(cmap='Blues', subset=[d1, d2, 'Common']),
+                use_container_width=True,
+                height=250
+            )
+            st.markdown("### 💾 Export Comparison Data")
+            exp_col1, exp_col2 = st.columns(2)
+            with exp_col1:
+                comparison_json = {
+                    'comparison_metadata': {
+                        'disease_1': d1,
+                        'disease_2': d2,
+                        'generated_at': datetime.now().isoformat(),
+                        'overall_similarity': f"{overall_similarity:.2f}%"
+                    },
+                    'statistics': {
+                        d1: {
+                            'total_items': len(prec1) + len(med1) + len(diet1) + len(work1),
+                            'precautions': len(prec1),
+                            'medications': len(med1),
+                            'diet': len(diet1),
+                            'workouts': len(work1),
+                            'completeness_score': f"{comp1:.2f}%"
+                        },
+                        d2: {
+                            'total_items': len(prec2) + len(med2) + len(diet2) + len(work2),
+                            'precautions': len(prec2),
+                            'medications': len(med2),
+                            'diet': len(diet2),
+                            'workouts': len(work2),
+                            'completeness_score': f"{comp2:.2f}%"
+                        }
+                    },
+                    'similarity_analysis': {
+                        cat: f"{sim:.2f}%" for cat, sim in similarity_scores
+                    },
+                    'common_items': {
+                        'precautions': highlight_items(prec1, prec2)[0],
+                        'medications': highlight_items(med1, med2)[0],
+                        'diet': highlight_items(diet1, diet2)[0],
+                        'workouts': highlight_items(work1, work2)[0]
+                    }
+                }
+                json_str = json.dumps(comparison_json, indent=2)
+                st.download_button(
+                    label="📥 Download JSON Report",
+                    data=json_str,
+                    file_name=f"comparison_{d1}_vs_{d2}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    mime="application/json",
+                    use_container_width=True
+                )
+            with exp_col2:
+                csv_data = df_comparison.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download CSV Data",
+                    data=csv_data,
+                    file_name=f"comparison_{d1}_vs_{d2}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+    
+    # ========== FOOTER ==========
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown("""
+        <div style='background: linear-gradient(135deg, #1f2937, #111827); 
+        color: white; padding: 2.5em; border-radius: 20px; text-align: center; margin-top: 3em;'>
+        <h3 style='margin: 0; color: white;'>🔬 Disease Knowledge Explorer</h3>
+        <p style='margin: 0.8em 0; opacity: 0.85; font-size: 1.1em;'>
+        Advanced Medical Information System | Powered by Data Analytics
+        </p>
+        <div style='margin-top: 1.5em; padding-top: 1.5em; border-top: 1px solid rgba(255,255,255,0.2);'>
+        <p style='margin: 0; opacity: 0.7; font-size: 0.95em;'>
+        📊 Visual Analytics • 🔍 Deep Insights • ⚖️ Smart Comparison • 💾 Data Export
+        </p>
+        <p style='margin: 0.8em 0 0 0; opacity: 0.6; font-size: 0.85em;'>
+        © 2024 Medical Knowledge System | For Educational & Research Purposes
+        </p>
+        </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Medical disclaimer
+    st.markdown("""
+        <div style='background: linear-gradient(135deg, #fef3c7, #fde68a); 
+        border-left: 5px solid #f59e0b; border-radius: 12px; padding: 1.5em; 
+        margin-top: 2em;'>
+        <h4 style='color: #92400e; margin-top: 0;'>⚠️ Medical Disclaimer</h4>
+        <p style='color: #78350f; margin-bottom: 0; line-height: 1.6;'>
+        <strong>Important:</strong> This disease explorer is an informational tool designed 
+        for educational purposes only. The information provided should not be used as a 
+        substitute for professional medical advice, diagnosis, or treatment. Always seek 
+        the advice of qualified health providers with questions regarding medical conditions. 
+        Never disregard professional medical advice or delay seeking it because of information 
+        obtained from this tool.
+        </p>
+        </div>
+    """, unsafe_allow_html=True)
