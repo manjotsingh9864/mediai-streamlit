@@ -5,6 +5,7 @@ matplotlib
 plotly
 networkx
 pyvis
+seaborn
 scikit-learn
 fpdf2
 joblib
