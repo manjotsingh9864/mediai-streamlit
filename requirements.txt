@@ -3,11 +3,12 @@ numpy
 pandas
 matplotlib
 plotly
+seaborn
 networkx
 pyvis
-seaborn
 scikit-learn
 fpdf2
 joblib
 google-generativeai
 protobuf
+geopy
