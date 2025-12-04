@@ -1,6 +1,12 @@
 streamlit
-pandas
 numpy
+pandas
+matplotlib
+plotly
+networkx
+pyvis
 scikit-learn
 fpdf2
-matplotlib
+joblib
+google-generativeai
+protobuf
