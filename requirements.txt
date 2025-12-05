@@ -12,4 +12,3 @@ joblib
 google-generativeai
 protobuf
 geopy
-sqlite3
