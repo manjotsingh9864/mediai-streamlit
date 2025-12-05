@@ -196,6 +196,32 @@ body, .stApp { background-color: #0f172a; color: #f1f5f9; }
 </style>
 """, unsafe_allow_html=True)
 
+# --- Custom CSS to remove Streamlit white border/padding and header spacing ---
+st.markdown("""
+<style>
+/* REMOVE the big white outer border / white padding around the app */
+[data-testid="stAppViewContainer"] {
+    background-color: #0f172a !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Remove Streamlit default block-container padding */
+.block-container {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Remove extra spacing on top */
+header[data-testid="stHeader"] {
+    background: transparent !important;
+    height: 0px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # Hide Streamlit default top header bar
 st.markdown("""
 <style>
