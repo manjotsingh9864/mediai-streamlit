@@ -135,6 +135,16 @@ if not st.session_state.logged_in:
 # Inject dark-mode professional CSS with blue-purple gradient buttons
 st.markdown("""
 <style>
+html, body, [data-testid="stAppViewContainer"], .main {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+}
+header[data-testid="stHeader"] {
+    height: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
 body, .stApp { background-color: #0f172a; color: #f1f5f9; }
 /* Remove white border/margin around main content */
 .block-container {
@@ -192,32 +202,6 @@ body, .stApp { background-color: #0f172a; color: #f1f5f9; }
     background: linear-gradient(135deg, #2563eb 0%, #a855f7 100%) !important;
     color: #ffffff !important;
     box-shadow: 0 4px 12px rgba(37,99,235,0.19);
-}
-</style>
-""", unsafe_allow_html=True)
-
-# --- Custom CSS to remove Streamlit white border/padding and header spacing ---
-st.markdown("""
-<style>
-/* REMOVE the big white outer border / white padding around the app */
-[data-testid="stAppViewContainer"] {
-    background-color: #0f172a !important;
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-/* Remove Streamlit default block-container padding */
-.block-container {
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-/* Remove extra spacing on top */
-header[data-testid="stHeader"] {
-    background: transparent !important;
-    height: 0px !important;
-    padding: 0 !important;
-    margin: 0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
