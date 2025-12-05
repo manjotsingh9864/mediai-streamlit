@@ -419,7 +419,7 @@ def render_symptom_input(all_symptoms, base_model, decode_label, training, helpe
         pdf.set_font("Arial", 'I', 8)
         pdf.cell(0, 10, f"AI Medical System v3.0 | Page {pdf.page_no()}", align="C")
         
-        pdf_bytes = bytes(pdf.output(dest='S'))
+        pdf_bytes = pdf.output(dest='S').encode('latin-1')
         return pdf_bytes
     
     def create_confidence_gauge(confidence):
@@ -711,6 +711,21 @@ def render_symptom_input(all_symptoms, base_model, decode_label, training, helpe
                 st.session_state['latest_predictions'] = predictions
                 st.session_state['latest_symptoms'] = selected_symptoms_with_severity
                 st.session_state['prediction_time'] = datetime.now()
+
+                # --- Unified History Logging for Reports Section ---
+                if "history" not in st.session_state:
+                    st.session_state["history"] = []
+
+                st.session_state["history"].append({
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "patient": str(sel_row) if sel_row is not None else "Anonymous",
+                    "disease": predictions[0][0],
+                    "confidence": float(predictions[0][1]),
+                    "symptoms": selected_symptoms_with_severity
+                })
+
+                # Keep last 20 entries only
+                st.session_state["history"] = st.session_state["history"][-20:]
                 
                 # Success message with animation
                 st.markdown("""

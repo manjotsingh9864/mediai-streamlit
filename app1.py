@@ -11,6 +11,7 @@ def draw_confidence_gauge(confidence, save_path):
     plt.close(fig)
 import streamlit as st
 import os
+API_KEY = os.getenv("GEMINI_API_KEY")
 import base64
 TMP_DIR = os.path.join("temp_uploads")
 os.makedirs(TMP_DIR, exist_ok=True)
@@ -157,7 +158,7 @@ body, .stApp { background-color: #0f172a; color: #f1f5f9; }
 .report-card h2 { font-size: 1.2rem; color: #f8fafc; margin: 4px 0; }
 .small-muted { color: #64748b; font-size: 0.7rem; }
 /* Sidebar: keep light bluish gradient for contrast */
-.stSidebar {
+[data-testid="stSidebar"] {
     background: linear-gradient(135deg, #e0f2ff, #bae6fd, #7dd3fc);
     color: #0f172a !important;
     backdrop-filter: blur(10px);
@@ -166,7 +167,7 @@ body, .stApp { background-color: #0f172a; color: #f1f5f9; }
     box-shadow: 0 8px 32px rgba(0,0,0,0.1);
     border: 1px solid rgba(180, 200, 255, 0.18);
 }
-.stSidebar .sidebar-content {
+[data-testid="stSidebar"] .sidebar-content {
     padding: 10px;
     color: #0f172a !important;
 }
@@ -200,7 +201,7 @@ st.markdown("""
 <style>
 /* Hide Streamlit default top header bar */
 header[data-testid="stHeader"] {
-    display: none;
+    /* display: none; */
 }
 </style>
 """, unsafe_allow_html=True)
@@ -905,7 +906,7 @@ if st.session_state["sidebar_selected_tab"] == 3:
     st.subheader("Session History")
     if "history" in st.session_state and st.session_state.history:
         hist_df = pd.DataFrame(st.session_state.history)
-        st.dataframe(hist_df[["timestamp","prediction","confidence"]])
+        st.dataframe(hist_df[["timestamp","disease","confidence"]])
         if st.button("Export all history as JSON"):
             out = json.dumps(st.session_state.history, indent=2).encode("utf-8")
             st.download_button("⬇️ Download history.json", data=out, file_name="history.json", mime="application/json")
@@ -1112,9 +1113,9 @@ if "history" in st.session_state and st.session_state.history:
         last_entry = st.session_state.history[-1]
         save_history_to_db(
             st.session_state.get("user","anon"),
-            last_entry["patient"].get("name"),
-            last_entry["patient"].get("age"),
-            last_entry["patient"].get("gender"),
+            (last_entry["patient"].get("name") if isinstance(last_entry["patient"], dict) else last_entry["patient"]),
+            (last_entry["patient"].get("age") if isinstance(last_entry["patient"], dict) else None),
+            (last_entry["patient"].get("gender") if isinstance(last_entry["patient"], dict) else None),
             last_entry.get("prediction"),
             float(last_entry.get("confidence", 0.0))
         )
