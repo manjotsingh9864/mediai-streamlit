@@ -1,16 +1,99 @@
-# Personalized-Medical-Recommendation-System-with-Machine-Learning
-Welcome to our cutting-edge Personalized Medical Recommendation System, a powerful platform designed to assist users in understanding and managing their health. Leveraging the capabilities of machine learning, our system analyzes user-input symptoms to predict potential diseases accurately. Here's what sets our system apart:
+# 🩺 MediAI – Intelligent Medical Recommendation System using Machine Learning
 
-User-Friendly Interface: Our intuitive interface allows users to input their symptoms effortlessly, creating a seamless user experience.
+## 🌟 Project Overview
+**MediAI** is an AI-powered healthcare recommendation system designed to predict possible diseases based on user-reported symptoms and provide preliminary medical and wellness suggestions.  
+The goal of this project is to demonstrate how **Machine Learning and Data Analytics** can assist in early health insight generation through an intuitive and interactive interface.
 
-Advanced Machine Learning Models: We've integrated state-of-the-art machine learning models that accurately predict diseases based on input symptoms, ensuring reliable and precise results.
+🚀 **Live Application (Streamlit Cloud):**  
+👉 https://mediai.streamlit.app
 
-Tailored Recommendations: Receive personalized recommendations for the top 5 medicines, prescription details, and even workout routines based on the predicted disease.
+---
 
-Flask App Integration: The entire system is powered by a Flask web application, making it easily accessible to users. Experience the convenience of accessing healthcare recommendations from anywhere.
+## ✨ Key Highlights
+- 🧠 **Machine Learning–Based Disease Prediction**
+- 🩺 **Symptom-Driven Health Analysis**
+- 💊 **Personalized Medical Recommendations**
+- 🏃 **Lifestyle & Wellness Guidance**
+- 📊 **Clean, Interactive Streamlit Dashboard**
+- 🔓 **No Login Required** – instant access for users
+- 🎓 **Academic & Industry-Oriented Project Design**
 
-Privacy and Security: We prioritize user privacy and data security. Your health information is handled with the utmost confidentiality, adhering to the highest industry standards.
+---
 
-Continuous Improvement: Our system is designed for continuous improvement. As we gather more data, the machine learning models evolve, providing increasingly accurate and relevant recommendations.
+## 🛠️ Technology Stack
+| Category | Tools / Libraries |
+|--------|------------------|
+| Programming Language | Python |
+| Web Framework | Streamlit |
+| Machine Learning | Scikit-learn |
+| Data Processing | Pandas, NumPy |
+| Visualization | Matplotlib, Seaborn |
 
-Take charge of your health with our Personalized Medical Recommendation System. Your well-being is our priority, and we're dedicated to providing you with the tools and insights you need for a healthier, happier life.
+---
+
+## ⚙️ System Workflow
+1. User inputs symptoms via the web interface  
+2. Data is processed and encoded  
+3. Trained Machine Learning model analyzes the symptoms  
+4. Possible disease is predicted  
+5. System generates medical and lifestyle recommendations  
+
+---
+
+## ▶️ How to Run the Project Locally
+
+### Step 1: Clone the Repository
+```bash
+git clone https://github.com/your-username/mediai.git
+```
+
+### Step 2: Navigate to Project Directory
+```bash
+cd mediai
+```
+
+### Step 3: Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### Step 4: Run the Application
+```bash
+streamlit run app.py
+```
+
+---
+
+## 🎯 Applications & Use Cases
+- Final year / semester academic project  
+- Machine Learning & Data Science portfolio project  
+- AI-based healthcare recommendation prototype  
+- Streamlit deployment demonstration  
+
+---
+
+## 📌 Project Outcomes
+- Demonstrates practical implementation of ML algorithms  
+- Enhances understanding of healthcare data analysis  
+- Shows real-world application of AI in the medical domain  
+- Provides hands-on experience with Streamlit deployment  
+
+---
+
+## 👨‍💻 Project Author
+**Manjot Singh**  
+📧 Email: singhtmanjot@gmail.com  
+📞 Contact: 7087736640  
+🔗 LinkedIn: https://www.linkedin.com/in/manjot-singh-ds  
+
+---
+
+## ⚠️ Disclaimer
+This application is intended **strictly for educational and demonstration purposes**.  
+It does **not** replace professional medical consultation, diagnosis, or treatment.
+
+---
+
+## ⭐ Acknowledgement
+If you find this project useful or insightful, please consider giving it a ⭐ on GitHub.  
+Your support is appreciated!
