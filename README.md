@@ -5,7 +5,7 @@
 The goal of this project is to demonstrate how **Machine Learning and Data Analytics** can assist in early health insight generation through an intuitive and interactive interface.
 
 🚀 **Live Application (Streamlit Cloud):**  
-👉 https://mediai.streamlit.app
+👉 https://mediai-manjot.streamlit.app
 
 ---
 
