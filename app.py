@@ -1,3 +1,4 @@
+# from auth import render_login
 from visualizations import render_visualizations
 def draw_confidence_gauge(confidence, save_path):
     fig, ax = plt.subplots(figsize=(3,3), subplot_kw=dict(aspect="equal"))
@@ -10,6 +11,8 @@ def draw_confidence_gauge(confidence, save_path):
     plt.close(fig)
 import streamlit as st
 import os
+API_KEY = os.getenv("GEMINI_API_KEY")
+import base64
 TMP_DIR = os.path.join("temp_uploads")
 os.makedirs(TMP_DIR, exist_ok=True)
 import numpy as np
@@ -29,6 +32,20 @@ import sqlite3
 from about_us import render_about_us
 DB_PATH = os.path.join("data", "history.db")
 os.makedirs("data", exist_ok=True)
+
+# Helper function to convert image to base64
+def get_image_base64(image_path):
+    """Convert image to base64 for embedding in HTML"""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except FileNotFoundError:
+        st.warning(f"Image file '{image_path}' not found in the current directory.")
+        return ""
+    except Exception as e:
+        st.warning(f"Error loading image: {e}")
+        return ""
+
 # SHAP for explainability (optional)
 try:
     import shap
@@ -36,6 +53,7 @@ try:
 except Exception:
     SHAP_OK = False
 
+# --- Google Gemini / GenAI initialization (robust) ---
 
 GENAI_CLIENT = None
 GENAI_MODEL = None
@@ -87,10 +105,6 @@ def generate_gemini_reply(prompt: str, max_output_tokens: int = 512):
         raise RuntimeError("No Google GenAI client available. Install 'google-genai' or 'google-generativeai' and set GEMINI_API_KEY.")
 
 
-# ----------------- Set Default User Context (No Auth) -----------------
-st.session_state["user"] = "Guest"
-st.session_state["role"] = "guest"
-st.session_state["authenticated"] = True
 # sklearn imports with graceful fallback
 try:
     from sklearn.ensemble import RandomForestClassifier
@@ -106,11 +120,31 @@ from utils.common import (
     fetch_recommendations, topk_predictions
 )
 
+# Set Streamlit page config
 st.set_page_config(page_title="AI Medical Recommendation System",
                    page_icon="🩺", layout="wide")
+
+# --------- AUTH STATE DEFAULTS ---------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = True
+
+# ---------------- AUTH GATE ----------------
+# if not st.session_state.logged_in:
+#     render_login()
+#     st.stop()
 # Inject dark-mode professional CSS with blue-purple gradient buttons
 st.markdown("""
 <style>
+html, body, [data-testid="stAppViewContainer"], .main {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+}
+header[data-testid="stHeader"] {
+    height: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
 body, .stApp { background-color: #0f172a; color: #f1f5f9; }
 /* Remove white border/margin around main content */
 .block-container {
@@ -134,7 +168,7 @@ body, .stApp { background-color: #0f172a; color: #f1f5f9; }
 .report-card h2 { font-size: 1.2rem; color: #f8fafc; margin: 4px 0; }
 .small-muted { color: #64748b; font-size: 0.7rem; }
 /* Sidebar: keep light bluish gradient for contrast */
-.stSidebar {
+[data-testid="stSidebar"] {
     background: linear-gradient(135deg, #e0f2ff, #bae6fd, #7dd3fc);
     color: #0f172a !important;
     backdrop-filter: blur(10px);
@@ -143,7 +177,7 @@ body, .stApp { background-color: #0f172a; color: #f1f5f9; }
     box-shadow: 0 8px 32px rgba(0,0,0,0.1);
     border: 1px solid rgba(180, 200, 255, 0.18);
 }
-.stSidebar .sidebar-content {
+[data-testid="stSidebar"] .sidebar-content {
     padding: 10px;
     color: #0f172a !important;
 }
@@ -169,39 +203,6 @@ body, .stApp { background-color: #0f172a; color: #f1f5f9; }
     color: #ffffff !important;
     box-shadow: 0 4px 12px rgba(37,99,235,0.19);
 }
-.welcome-container {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    margin-top: 20px;
-}
-.welcome-banner {
-    background: url('a.png') center/cover no-repeat;
-    border-radius: 16px;
-    padding: 50px 20px;
-    text-align: center;
-    color: #ffffff;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    width: 90%;
-    backdrop-filter: brightness(0.75);
-}
-.welcome-banner h1 {
-    font-size: 2.5rem;
-    font-weight: 700;
-    margin-bottom: 10px;
-    text-shadow: 2px 2px 6px rgba(0,0,0,0.4);
-}
-.welcome-banner h2 {
-    font-size: 1.8rem;
-    font-weight: 500;
-    margin-bottom: 8px;
-    text-shadow: 2px 2px 6px rgba(0,0,0,0.4);
-}
-.welcome-banner p {
-    font-size: 1rem;
-    font-weight: 400;
-    opacity: 0.9;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -210,7 +211,7 @@ st.markdown("""
 <style>
 /* Hide Streamlit default top header bar */
 header[data-testid="stHeader"] {
-    display: none;
+    /* display: none; */
 }
 </style>
 """, unsafe_allow_html=True)
@@ -426,154 +427,390 @@ if "sidebar_selected_tab" not in st.session_state:
 ## ----------- MAIN PAGE RENDERING: use sidebar_selected_tab only -----------
 if st.session_state["sidebar_selected_tab"] == 0:
     # Home page: Welcome, introduction, project overview, banner, features
+    
+    # Load images as base64
+    manjot_image_base64 = get_image_base64("manjot.png")
+    s_image_base64 = get_image_base64("s.png")
+    
     st.markdown("""
     <style>
-    .home-banner {
-        background: linear-gradient(90deg, #10B981 0%, #3B82F6 100%);
-        border-radius: 18px;
-        padding: 24px 20px 20px 20px;
-        margin-bottom: 30px;
-        box-shadow: 0 4px 18px rgba(16,185,129,0.10);
-        text-align: center;
-        color: #fff;
-        animation: fadein 1.5s;
+    .hero-section {
+        position: relative;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        border-radius: 24px;
+        padding: 0;
+        margin-bottom: 40px;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(16,185,129,0.25), 0 0 100px rgba(59,130,246,0.15);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
     }
-    .home-features-container {
+    .hero-background {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: url('data:image/png;base64,""" + s_image_base64 + """');
+        background-size: cover;
+        background-position: center;
+        opacity: 0.15;
+        filter: blur(2px);
+        animation: subtleZoom 20s ease-in-out infinite alternate;
+    }
+    @keyframes subtleZoom {
+        0% { transform: scale(1); }
+        100% { transform: scale(1.1); }
+    }
+    .hero-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(circle at 30% 50%, rgba(16,185,129,0.2) 0%, rgba(59,130,246,0.2) 50%, rgba(147,51,234,0.2) 100%);
+        animation: colorShift 15s ease-in-out infinite;
+    }
+    @keyframes colorShift {
+        0%, 100% { opacity: 0.7; }
+        50% { opacity: 0.9; }
+    }
+    .hero-content {
+        position: relative;
+        z-index: 10;
+        padding: 60px 40px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    .hero-image-container {
+        position: relative;
+        display: inline-block;
+        margin-bottom: 30px;
+        animation: heroFloat 4s ease-in-out infinite;
+    }
+    @keyframes heroFloat {
+        0%, 100% { transform: translateY(0px) rotate(0deg); }
+        25% { transform: translateY(-15px) rotate(2deg); }
+        50% { transform: translateY(-8px) rotate(0deg); }
+        75% { transform: translateY(-15px) rotate(-2deg); }
+    }
+    .hero-image-wrapper {
+        position: relative;
+        width: 250px;
+        height: 250px;
+        margin: 0 auto;
+    }
+    .hero-image {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 5px solid rgba(255,255,255,0.2);
+        box-shadow: 
+            0 0 40px rgba(16,185,129,0.6),
+            0 0 80px rgba(59,130,246,0.4),
+            0 0 120px rgba(147,51,234,0.3),
+            inset 0 0 20px rgba(255,255,255,0.1);
+        animation: imagePulse 3s ease-in-out infinite;
+    }
+    @keyframes imagePulse {
+        0%, 100% { 
+            box-shadow: 
+                0 0 40px rgba(16,185,129,0.6),
+                0 0 80px rgba(59,130,246,0.4),
+                0 0 120px rgba(147,51,234,0.3),
+                inset 0 0 20px rgba(255,255,255,0.1);
+        }
+        50% { 
+            box-shadow: 
+                0 0 60px rgba(16,185,129,0.8),
+                0 0 100px rgba(59,130,246,0.6),
+                0 0 140px rgba(147,51,234,0.5),
+                inset 0 0 30px rgba(255,255,255,0.2);
+        }
+    }
+    .hero-glow-ring {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 260px;
+        height: 260px;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        background: linear-gradient(45deg, #10B981, #3B82F6, #9333EA, #10B981) border-box;
+        -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        animation: rotateGlow 8s linear infinite;
+    }
+    @keyframes rotateGlow {
+        0% { transform: translate(-50%, -50%) rotate(0deg); }
+        100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    .hero-particles {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+    }
+    .particle {
+        position: absolute;
+        width: 4px;
+        height: 4px;
+        background: radial-gradient(circle, rgba(16,185,129,0.8), transparent);
+        border-radius: 50%;
+        animation: float-particle 4s ease-in-out infinite;
+    }
+    .particle:nth-child(1) { top: 20%; left: 15%; animation-delay: 0s; }
+    .particle:nth-child(2) { top: 40%; left: 85%; animation-delay: 1s; }
+    .particle:nth-child(3) { top: 60%; left: 20%; animation-delay: 2s; }
+    .particle:nth-child(4) { top: 80%; left: 75%; animation-delay: 1.5s; }
+    @keyframes float-particle {
+        0%, 100% { transform: translateY(0px) scale(1); opacity: 0.3; }
+        50% { transform: translateY(-20px) scale(1.5); opacity: 0.8; }
+    }
+    .hero-title {
+        font-size: 3.7rem;
+        font-weight: 900;
+        margin-bottom: 20px;
+        background: linear-gradient(90deg, #10B981 0%, #3B82F6 50%, #9333EA 100%);
+        background-size: 220% auto;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        color: transparent;
+        animation: gradientFlow 5s ease infinite;
+        text-shadow: 0 4px 20px rgba(59,130,246,0.25);
+        letter-spacing: -1px;
+        text-align: center;
+    }
+    @keyframes gradientFlow {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+    }
+    .hero-subtitle {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin-bottom: 20px;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        animation: fadeInUp 1s ease-out 0.3s both;
+        text-align: center;
+    }
+    .hero-description {
+        font-size: 1.25rem;
+        line-height: 1.8;
+        color: #e0e7ef;
+        max-width: 800px;
+        margin: 0 auto 30px;
+        text-shadow: 0 1px 5px rgba(0,0,0,0.3);
+        animation: fadeInUp 1s ease-out 0.6s both;
+        text-align: center;
+    }
+    .hero-features-pills {
         display: flex;
         flex-wrap: wrap;
         justify-content: center;
-        gap: 28px;
+        align-items: center;
+        gap: 18px;
+        margin-top: 30px;
+        animation: fadeInUp 1s ease-out 0.9s both;
+    }
+    .feature-pill {
+        background: linear-gradient(90deg, #3B82F6 0%, #9333EA 100%);
+        color: #fff;
+        font-weight: 700;
+        font-size: 1.1rem;
+        padding: 14px 32px;
+        border-radius: 30px;
+        border: none;
+        box-shadow: 0 4px 18px rgba(59,130,246,0.15);
+        transition: background 0.3s, box-shadow 0.3s, transform 0.18s;
+        text-align: center;
+        letter-spacing: 0.01em;
+        cursor: pointer;
+        filter: drop-shadow(0 0 8px #9333ea33);
+        background-size: 200% auto;
+        position: relative;
+        z-index: 2;
+    }
+    .feature-pill:hover {
+        background: linear-gradient(90deg, #10B981 0%, #3B82F6 80%);
+        box-shadow: 0 8px 30px rgba(16,185,129,0.25);
+        transform: scale(1.06) translateY(-2px);
+    }
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    .home-features-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 30px;
         margin-bottom: 40px;
+        animation: fadeIn 1s ease-out 1.2s both;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
     }
     .feature-card {
-        background: #f0fdfd;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(59,130,246,0.09);
-        padding: 26px 20px 20px 20px;
-        min-width: 270px;
-        max-width: 320px;
-        margin: 8px;
-        transition: transform 0.2s, box-shadow 0.2s;
-        border: 1.5px solid #3B82F6;
-        color: #022c22;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border-radius: 16px;
+        padding: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        border: 1px solid rgba(59,130,246,0.2);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        position: relative;
+        overflow: hidden;
+    }
+    .feature-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(59,130,246,0.1));
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    .feature-card:hover::before {
+        opacity: 1;
     }
     .feature-card:hover {
-        transform: translateY(-6px) scale(1.03);
-        box-shadow: 0 6px 22px rgba(16,185,129,0.12);
+        transform: translateY(-10px) scale(1.02);
+        box-shadow: 0 20px 50px rgba(16,185,129,0.2), 0 0 50px rgba(59,130,246,0.1);
+        border-color: rgba(16,185,129,0.5);
     }
     .feature-icon {
-        font-size: 2.2rem;
-        margin-bottom: 10px;
-        color: #10B981;
-        text-shadow: 0 2px 6px rgba(16,185,129,0.07);
+        font-size: 3rem;
+        margin-bottom: 15px;
+        display: inline-block;
+        animation: iconBounce 2s ease-in-out infinite;
+    }
+    @keyframes iconBounce {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-8px); }
     }
     .feature-title {
-        font-size: 1.1rem;
-        font-weight: bold;
-        margin-bottom: 6px;
-        color: #155e75;
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-bottom: 12px;
+        color: #f8fafc;
+        position: relative;
+        z-index: 1;
     }
     .feature-desc {
         font-size: 1rem;
-        color: #334155;
-        opacity: 0.85;
+        color: #cbd5e1;
+        line-height: 1.6;
+        position: relative;
+        z-index: 1;
     }
     .home-section {
-        background: #e0f7f9;
-        border-radius: 10px;
-        padding: 18px 18px 10px 18px;
-        margin-bottom: 25px;
-        box-shadow: 0 1px 6px rgba(16,185,129,0.07);
+        background: linear-gradient(135deg, #1e293b, #334155);
+        border-radius: 16px;
+        padding: 30px;
+        margin-bottom: 30px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        border: 1px solid rgba(59,130,246,0.2);
     }
     .home-section-title {
-        font-size: 1.3rem;
-        font-weight: 600;
-        color: #0e7490;
-        margin-bottom: 8px;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #10B981;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
-    .home-highlight {
-        color: #3B82F6;
-        font-weight: 600;
-    }
-    @keyframes floatLogo {
-      0% { transform: translateY(0px); }
-      50% { transform: translateY(-8px); }
-      100% { transform: translateY(0px); }
+    .home-section-title::before {
+        content: '✨';
+        font-size: 1.5rem;
     }
     </style>
     """, unsafe_allow_html=True)
+
+    # Hero Section with Image and centered/gradient text and pills, plus creative footer
     st.markdown("""
-    <div class="home-banner">
-        <img src="manjot.png" alt="MediAI Logo" style="
-            max-width:180px;
-            width:100%;
-            height:auto;
-            display:block;
-            margin:auto;
-            margin-bottom:12px;
-            border-radius:50%;
-            box-shadow: 0 0 20px #3B82F6, 0 0 30px #10B981, 0 0 40px #9333EA;
-            animation: floatLogo 4s ease-in-out infinite;
-        "/>
-        <h1 style="
-            font-size:2.6rem; 
-            font-weight:700; 
-            margin-bottom:0.15em; 
-            text-align:center;
-            background: linear-gradient(270deg, #8B0000, #B22222, #800000); 
-            background-size: 1200% 1200%;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: gradientGlowHeading 7s linear infinite;
-        ">
-          🩺 Welcome to MediAI
-        </h1>
-        <style>
-        @keyframes gradientGlowHeading {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        </style>
-        <h2 style="font-size:1.6rem; font-weight:500; margin-bottom:0.1em;">Empowering healthcare with AI-driven insights</h2>
-        <p style="font-size:1.1rem; max-width:650px; margin:auto; margin-bottom:0.05em;">
-            Welcome to <b>AI Medical Recommendation System</b> – a platform that harnesses Artificial Intelligence to help you make informed, educational, and data-driven health decisions.
-        </p>
-        <p style="font-size:1.05rem; max-width:650px; margin:auto; margin-bottom:0.05em;">
-            <span class="home-highlight" style="
-                background: linear-gradient(135deg, #5b21b6, #9333ea);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                font-weight: 700;
-            ">Symptom Prediction</span>,
-            <span class="home-highlight" style="
-                background: linear-gradient(135deg, #5b21b6, #9333ea);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                font-weight: 700;
-            ">Disease Explorer</span>,
-            <span class="home-highlight" style="
-                background: linear-gradient(135deg, #5b21b6, #9333ea);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                font-weight: 700;
-            ">Visualizations</span>,
-            <span class="home-highlight" style="
-                background: linear-gradient(135deg, #5b21b6, #9333ea);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                font-weight: 700;
-            ">AI Assistant</span>,
-            <span class="home-highlight" style="
-                background: linear-gradient(135deg, #5b21b6, #9333ea);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                font-weight: 700;
-            ">Reports</span>
-            – all in one seamless and secure environment.
-        </p>
+    <style>
+    .hero-footer {
+        margin-top: 28px;
+        text-align: center;
+        font-size: 0.92rem;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        background: linear-gradient(90deg, #a5b4fc 0%, #c7d2fe 30%, #f0abfc 60%, #f472b6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        color: transparent;
+        filter: drop-shadow(0 1px 3px #9333ea33);
+        padding: 0.7em 0 0.4em 0;
+        border-radius: 10px;
+        opacity: 0.9;
+        transition: opacity 0.3s;
+        user-select: none;
+        font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+    }
+    .hero-footer:hover {
+        opacity: 1;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="hero-section">
+        <div class="hero-background"></div>
+        <div class="hero-overlay"></div>
+        <div class="hero-particles">
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+        </div>
+        <div class="hero-content">
+            <div class="hero-image-container">
+                <div class="hero-image-wrapper">
+                    <div class="hero-glow-ring"></div>
+                    <img src="data:image/png;base64,{manjot_image_base64}" class="hero-image" alt="MediAI">
+                </div>
+            </div>
+            <h1 class="hero-title">🩺 Welcome to MediAI</h1>
+            <h2 class="hero-subtitle">Empowering Healthcare with AI-Driven Insights</h2>
+            <p class="hero-description">
+                Welcome to <strong>AI Medical Recommendation System</strong> – a cutting-edge platform that harnesses 
+                the power of Artificial Intelligence to help you make informed, educational, and data-driven health decisions. 
+                Experience the future of healthcare technology today.
+            </p>
+            <div class="hero-features-pills">
+                <div class="feature-pill">🔎 Symptom Prediction</div>
+                <div class="feature-pill">📚 Disease Explorer</div>
+                <div class="feature-pill">📊 Visualizations</div>
+                <div class="feature-pill">🤖 AI Assistant</div>
+                <div class="feature-pill">📁 Reports &amp; History</div>
+            </div>
+            <div class="hero-footer">
+                Created by Manjot Singh
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Feature Cards
     st.markdown("""
     <div class="home-features-container">
         <div class="feature-card">
@@ -592,7 +829,7 @@ if st.session_state["sidebar_selected_tab"] == 0:
         </div>
         <div class="feature-card">
             <div class="feature-icon">📊</div>
-            <div class="feature-title">Visualizations</div>
+            <div class="feature-title">Visual Insights</div>
             <div class="feature-desc">
                 Discover interactive charts, heatmaps, and networks that reveal patterns in symptoms, diseases, and predictions.
             </div>
@@ -620,34 +857,47 @@ if st.session_state["sidebar_selected_tab"] == 0:
         </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Why Choose Section
     st.markdown("""
     <div class="home-section">
         <div class="home-section-title">Why Choose Our System?</div>
-        <ul style="font-size:1.04rem; color:#334155;">
-            <li><b>AI-driven accuracy:</b> Ensemble models and explainable AI for robust predictions.</li>
-            <li><b>Rich knowledge base:</b> Extensive disease and symptom database, curated recommendations.</li>
-            <li><b>Interactive visualizations:</b> Heatmaps, networks, and charts for deeper insights.</li>
-            <li><b>Personalized reports:</b> Export your results in PDF/JSON for sharing or consultation.</li>
-            <li><b>Educational focus:</b> Designed for learning, awareness, and informed discussion – not a substitute for professional advice.</li>
-            <li><b>Secure access:</b> Role-based authentication for privacy and admin features.</li>
+        <ul style="font-size:1.1rem; color:#cbd5e1; line-height:2;">
+            <li><b style="color:#10B981;">AI-driven accuracy:</b> Ensemble models and explainable AI for robust predictions.</li>
+            <li><b style="color:#3B82F6;">Rich knowledge base:</b> Extensive disease and symptom database, curated recommendations.</li>
+            <li><b style="color:#9333EA;">Interactive visualizations:</b> Heatmaps, networks, and charts for deeper insights.</li>
+            <li><b style="color:#10B981;">Personalized reports:</b> Export your results in PDF/JSON for sharing or consultation.</li>
+            <li><b style="color:#3B82F6;">Educational focus:</b> Designed for learning, awareness, and informed discussion – not a substitute for professional advice.</li>
+            <li><b style="color:#9333EA;">Secure access:</b> Role-based authentication for privacy and admin features.</li>
         </ul>
     </div>
+    """, unsafe_allow_html=True)
+    
+    # Get Started Section
+    st.markdown("""
     <div class="home-section">
         <div class="home-section-title">Get Started</div>
-        <ol style="font-size:1.03rem; color:#334155;">
+        <ol style="font-size:1.1rem; color:#cbd5e1; line-height:2;">
             <li>Enter your symptoms and patient info using the sidebar.</li>
             <li>Navigate via the sidebar to explore features.</li>
             <li>Generate predictions, view recommendations, and interact with the AI Assistant.</li>
             <li>Download reports and review your session history anytime.</li>
         </ol>
-        <p style="color:#0e7490;"><b>Note:</b> All outputs are for educational purposes only. Always consult a qualified medical professional for real health concerns.</p>
+        <p style="color:#fbbf24; background: rgba(251,191,36,0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #fbbf24; margin-top: 20px;">
+            <strong>⚠️ Important Note:</strong> All outputs are for educational purposes only. Always consult a qualified medical professional for real health concerns.
+        </p>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Call to Action
     st.markdown("""
-    <div style="text-align:center; margin-top:18px;">
-        <span style="color:#3B82F6; font-size:1.1rem; font-weight:500;">
-        Ready to explore? Use the sidebar to begin your journey!
-        </span>
+    <div style="text-align:center; margin-top:40px; padding: 30px; background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(59,130,246,0.1)); border-radius: 16px; border: 2px solid rgba(16,185,129,0.3);">
+        <h3 style="color:#10B981; font-size:1.8rem; font-weight:700; margin-bottom:15px;">
+            Ready to Explore? 🚀
+        </h3>
+        <p style="color:#cbd5e1; font-size:1.2rem;">
+            Use the <strong style="color:#3B82F6;">sidebar menu</strong> to begin your healthcare journey!
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -666,7 +916,7 @@ if st.session_state["sidebar_selected_tab"] == 3:
     st.subheader("Session History")
     if "history" in st.session_state and st.session_state.history:
         hist_df = pd.DataFrame(st.session_state.history)
-        st.dataframe(hist_df[["timestamp","prediction","confidence"]])
+        st.dataframe(hist_df[["timestamp","disease","confidence"]])
         if st.button("Export all history as JSON"):
             out = json.dumps(st.session_state.history, indent=2).encode("utf-8")
             st.download_button("⬇️ Download history.json", data=out, file_name="history.json", mime="application/json")
@@ -705,16 +955,11 @@ if st.session_state["sidebar_selected_tab"] == 4:
 ## ----------- ALL USERS HISTORY SECTION -----------
 if st.session_state["sidebar_selected_tab"] == 5:
     st.header("📜 All Users History")
-    # Implement all users history content here if applicable
     st.info("All Users History feature coming soon or restricted to admins.")
 
 ## ----------- ABOUT US SECTION -----------
 if st.session_state["sidebar_selected_tab"] == 6:
     render_about_us()
-
-
-## Remove extra Symptom Input Tab rendering via tabs[0] (handled in Home section and via sidebar_selected_tab).
-
 
 # Disease Explorer Tab (Tab 1)
 if st.session_state["sidebar_selected_tab"] == 1:
@@ -766,33 +1011,70 @@ if st.session_state["sidebar_selected_tab"] == 1:
             st.write(d1[0] or "No description")
             for cat, itms in zip(categories, items1):
                 st.markdown(f"**{cat}**")
-                if itms: [st.write("-", i) for i in itms]
-                else: st.write("— None listed —")
+                if itms:
+                    for i in itms:
+                        st.write("-", i)
         with colB:
             st.write(f"### {comp2}")
             st.write(d2[0] or "No description")
             for cat, itms in zip(categories, items2):
                 st.markdown(f"**{cat}**")
-                if itms: [st.write("-", i) for i in itms]
-                else: st.write("— None listed —")
+                if itms:
+                    for i in itms:
+                        st.write("-", i)
 
-        # Radar chart comparison (if plot_radar_comparison exists)
-        if 'plot_radar_comparison' in globals():
-            plot_radar_comparison(d1, d2, comp1, comp2)
-
-        # Bar chart comparison
-        import matplotlib.pyplot as plt
+        # ✅ PERFECT grouped bar chart for comparing two diseases
         counts1 = [len(itms) for itms in items1]
         counts2 = [len(itms) for itms in items2]
-        fig, ax = plt.subplots(figsize=(6,4))
-        width = 0.35
-        x = range(len(categories))
-        ax.bar([c + "_1" for c in categories], counts1, width=0.35, color="#10B981", label=comp1)
-        ax.bar([c + "_2" for c in categories], counts2, width=0.35, color="#3B82F6", label=comp2)
-        ax.set_ylabel("Number of items")
-        ax.set_title("Recommendation richness comparison")
-        ax.legend()
-        plt.tight_layout()
+
+        categories = ["Precautions", "Medications", "Diet", "Workouts"]
+        x = np.arange(len(categories))
+        width = 0.36
+
+        fig, ax = plt.subplots(figsize=(7.5, 4.8))
+
+        bars1 = ax.bar(
+            x - width/2, counts1, width,
+            label=comp1, color="#10B981"
+        )
+        bars2 = ax.bar(
+            x + width/2, counts2, width,
+            label=comp2, color="#3B82F6"
+        )
+
+        # Axis & title
+        ax.set_ylabel("Number of Recommendations", fontsize=11)
+        ax.set_xlabel("Categories", fontsize=11)
+        ax.set_title("Recommendation Richness Comparison", fontsize=14, weight="bold")
+        ax.set_xticks(x)
+        ax.set_xticklabels(categories, fontsize=11)
+
+        # Grid (clean & professional)
+        ax.grid(axis="y", linestyle="--", alpha=0.4)
+        ax.set_axisbelow(True)
+
+        # Value labels on top of bars
+        def add_values(bars):
+            for bar in bars:
+                h = bar.get_height()
+                if h > 0:
+                    ax.text(
+                        bar.get_x() + bar.get_width()/2,
+                        h + 0.05,
+                        str(int(h)),
+                        ha="center",
+                        va="bottom",
+                        fontsize=10,
+                        weight="bold"
+                    )
+
+        add_values(bars1)
+        add_values(bars2)
+
+        # Legend
+        ax.legend(frameon=False, fontsize=10)
+
+        plt.tight_layout(pad=1.6)
         st.pyplot(fig)
 
         # Highlight common vs unique items per category
@@ -804,59 +1086,6 @@ if st.session_state["sidebar_selected_tab"] == 1:
             st.write("**Common:**", list(common) if common else "None")
             st.write(f"**Unique to {comp1}:**", list(unique1) if unique1 else "None")
             st.write(f"**Unique to {comp2}:**", list(unique2) if unique2 else "None")
-
-
-# Reports Tab (Tab 3)
-if st.session_state["sidebar_selected_tab"] == 3:
-    st.header("Reports & History")
-    st.subheader("Session History")
-    if "history" in st.session_state and st.session_state.history:
-        import pandas as pd  # ensure pd is pandas
-        if isinstance(pd, str):
-            import pandas as pd
-        hist_df = pd.DataFrame(st.session_state.history)
-        st.dataframe(hist_df[["timestamp","prediction","confidence"]])
-        if st.button("Export all history as JSON", key="export_history_json_button_secondary"):
-            out = json.dumps(st.session_state.history, indent=2).encode("utf-8")
-            st.download_button("⬇️ Download history.json", data=out, file_name="history.json", mime="application/json")
-    else:
-        st.caption("No predictions in this session yet.")
-
-# AI Assistant Tab (Tab 4)
-if st.session_state["sidebar_selected_tab"] == 4:
-    st.header("💬 AI Medical Assistant (Gemini)")
-    st.write("Ask any question about diseases, symptoms, diet, medications, or health tips (educational only).")
-
-    user_question = st.text_input("Type your question here:", key="ai_user_question_input_final")
-
-    # Optional: select a context for better answers
-    context_options = ["General medical education", "Disease symptoms", "Diet & lifestyle", "Medications (educational only)"]
-    context_choice = st.selectbox("Select context (helps AI focus)", context_options, index=0, key="ai_context_choice_selectbox_secondary")
-
-    if st.button("Get AI Answer", key="ai_assistant_button_final"):
-        if not user_question.strip():
-            st.warning("Please enter a question.")
-        else:
-            try:
-                # Generate reply using initialized GenAI client (robust)
-                ai_answer = generate_gemini_reply(user_question)
-                st.markdown(f"**AI Answer:** {ai_answer}")
-                # Optional tips
-                st.markdown("**Tips:**")
-                st.markdown("- Educational only, not a medical diagnosis.")
-                st.markdown("- Consult a qualified professional for real health concerns.")
-                # Store in session history
-                if "ai_history" not in st.session_state:
-                    st.session_state.ai_history = []
-                st.session_state.ai_history.append({"question": user_question, "answer": ai_answer})
-                if st.session_state.ai_history:
-                    st.markdown("### Recent AI interactions")
-                    for i, qa in enumerate(reversed(st.session_state.ai_history[-5:])):
-                        st.markdown(f"**Q{i+1}:** {qa['question']}")
-                        st.markdown(f"**A{i+1}:** {qa['answer']}")
-                        st.markdown("---")
-            except Exception as e:
-                st.error(f"Error fetching AI answer: {e}")
 
 # Footer
 st.markdown("---")
@@ -878,6 +1107,7 @@ def init_history_db():
     conn.commit()
     conn.close()
 init_history_db()
+
 def save_history_to_db(user, patient_name, patient_age, patient_gender, prediction, confidence):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -885,6 +1115,7 @@ def save_history_to_db(user, patient_name, patient_age, patient_gender, predicti
               (datetime.now().isoformat(), user, patient_name, patient_age, patient_gender, prediction, confidence))
     conn.commit()
     conn.close()
+
 if "history" in st.session_state and st.session_state.history:
     current_len = len(st.session_state.history)
     last_saved_len = st.session_state.get("saved_history_len", 0)
@@ -892,9 +1123,9 @@ if "history" in st.session_state and st.session_state.history:
         last_entry = st.session_state.history[-1]
         save_history_to_db(
             st.session_state.get("user","anon"),
-            last_entry["patient"].get("name"),
-            last_entry["patient"].get("age"),
-            last_entry["patient"].get("gender"),
+            (last_entry["patient"].get("name") if isinstance(last_entry["patient"], dict) else last_entry["patient"]),
+            (last_entry["patient"].get("age") if isinstance(last_entry["patient"], dict) else None),
+            (last_entry["patient"].get("gender") if isinstance(last_entry["patient"], dict) else None),
             last_entry.get("prediction"),
             float(last_entry.get("confidence", 0.0))
         )
@@ -930,9 +1161,6 @@ if st.session_state["sidebar_selected_tab"] == 5:
         q += " WHERE " + " AND ".join(clauses)
     q += " ORDER BY timestamp DESC"
     try:
-        import pandas as pd  # ensure pd is pandas
-        if isinstance(pd, str):
-            import pandas as pd
         df_db_hist = pd.read_sql_query(q, conn, params=params)
     finally:
         conn.close()
@@ -947,8 +1175,8 @@ if st.session_state["sidebar_selected_tab"] == 5:
 from symptom_input import render_symptom_input
 
 # Ensure user_id and sel_row are defined for symptom_input module
-user_id = st.session_state.get("user", "guest")  # or numeric ID if available
-sel_row = None  # placeholder for selected patient row; can integrate patient selection logic if available
+user_id = st.session_state.get("user_email", "guest")
+sel_row = None
 
 if st.session_state["sidebar_selected_tab"] == 7:
     render_symptom_input(all_symptoms, base_model, decode_label, training, helpers, TMP_DIR, user_id, sel_row)
@@ -956,3 +1184,27 @@ if st.session_state["sidebar_selected_tab"] == 7:
 # Hospital & Doctor Recommendation Tab (Tab 8)
 if st.session_state["sidebar_selected_tab"] == 8:
     render_hospital_recommendation()
+
+# ----------- OPTIONAL WELCOME HEADER (after login, e.g., near Dashboard or always after auth) -----------
+st.markdown(f"""
+<div style="
+    background: linear-gradient(135deg,#0f172a,#1e293b);
+    padding: 28px;
+    border-radius: 18px;
+    margin-bottom: 25px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+">
+    <h2 style="margin:0;color:#10B981">
+        👋 Welcome, {st.session_state.get("user_name","User")}
+    </h2>
+    <p style="margin-top:8px;opacity:0.85">
+        You are successfully logged in to MediAI
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+# ----------- OPTIONAL LOGOUT BUTTON (sidebar, recommended place) -----------
+st.sidebar.markdown("---")
+if st.sidebar.button("🚪 Logout"):
+    st.session_state.clear()
+    st.rerun()
